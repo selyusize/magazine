@@ -18,7 +18,7 @@ deploy_authorized_keys: []
 image_prefix: ghcr.io/owner/magazine-template
 
 # ─── Почта ──────────────────────────────────────────────────────────────────
-# SMTP для писем магазина: заказ оформлен, сброс пароля, приглашение в админку, приветствие.
+# SMTP для писем магазина (сервис backend/src/shared/smtp).
 # Пароль — vault_smtp_password. Пустой smtp_host — письма не отправляются, только пишутся в лог backend.
 #   Яндекс 360:  smtp.yandex.ru, 465 (пароль приложения)
 #   Mail.ru:     smtp.mail.ru, 465 (пароль для внешних приложений)

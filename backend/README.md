@@ -33,9 +33,10 @@ pnpm test:unit | test:integration:http | test:integration:modules
 - `medusa-config.ts`: при заданном `REDIS_URL` события, workflows и блокировки идут через Redis
   (обязательно, когда server и worker в разных контейнерах).
   `MEDUSA_WORKER_MODE` — `shared` (dev), `server` (HTTP API + админка), `worker` (подписчики, jobs).
-- Почта: модуль Notification с провайдером `src/modules/smtp` (nodemailer) при заданном `SMTP_HOST`, иначе письма
-  только пишутся в лог. Шаблоны — `src/modules/smtp/templates.ts`, отправку запускают подписчики `src/subscribers`
-  (заказ, сброс пароля, приглашение, приветствие). Локально `SMTP_HOST=localhost:1025` — Mailpit, http://localhost:8025.
+- Почта: сервис `SMTP` (`src/shared/smtp/service/smtp.ts`, nodemailer), настройки из `SMTP_*` читает
+  `src/container/common/smtp.ts`. Отправка — `Container.from(container).get(SMTP).send({ to, subject, html })` или
+  параметр конструктора `smtp: SMTP`. Без `SMTP_HOST` письма только пишутся в лог.
+  Локально `SMTP_HOST=localhost:1025` — Mailpit, http://localhost:8025.
 - `openapi/store.oas.json` — спецификация Store API, из неё фронт генерирует клиент (Orval).
   Собирается `@medusajs/medusa-oas-cli`: базовая спецификация Medusa (скачивается с docs.medusajs.com)
   + JSDoc-блоки `@oas` из `src/api` (пример — `src/api/store/custom/route.ts`). Роут без `@oas`
@@ -45,5 +46,6 @@ pnpm test:unit | test:integration:http | test:integration:modules
 
 ## Структура `src/`
 
-`api/` — свои эндпоинты (`store/`, `admin/`), `modules/` — свои модули, `links/` — связи модулей,
-`workflows/`, `subscribers/`, `jobs/`, `admin/` — расширения админки.
+`api/` — свои эндпоинты (`store/`, `admin/`), `modules/` — свои модули, `shared/` — контракты и базовые классы,
+`container/` — контейнер зависимостей, `links/` — связи модулей, `subscribers/`, `jobs/`, `admin/` — расширения админки.
+Правила архитектуры — [arch-guide.md](arch-guide.md).

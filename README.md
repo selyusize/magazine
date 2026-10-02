@@ -51,18 +51,12 @@ RabbitMQ `https://rabbitmq.<домен>`.
 
 ## Почта
 
-Письма отправляет backend (модуль Notification + SMTP, `backend/src/modules/smtp`):
-
-| Событие | Письмо | Кому |
-|---|---|---|
-| `order.placed` | Заказ оформлен: позиции, доставка, итог | покупателю |
-| `auth.password_reset` | Ссылка на смену пароля (витрина `/reset-password` или админка) | покупателю / сотруднику |
-| `invite.created`, `invite.resent` | Приглашение в админку | сотруднику |
-| `customer.created` | Приветствие после регистрации (гостям — нет) | покупателю |
+Письма отправляет сервис `SMTP` в backend (`backend/src/shared/smtp/service/smtp.ts`). Автоматических писем
+по событиям магазина пока нет: новое письмо — use‑case, который собирает HTML и вызывает `SMTP.send(...)`
+(см. `backend/arch-guide.md`).
 
 Локально всё уходит в Mailpit (http://localhost:8025). На проде — любой SMTP: `smtp_host` / `smtp_user` в
-`group_vars/all/main.yml`, пароль — `vault_smtp_password` (`make infra-vault-edit`). Тексты писем —
-`backend/src/modules/smtp/templates.ts`, новое письмо = шаблон + подписчик в `backend/src/subscribers`.
+`group_vars/all/main.yml`, пароль — `vault_smtp_password` (`make infra-vault-edit`).
 Без `SMTP_HOST` письма не отправляются, а пишутся в лог backend.
 
 ## Прод

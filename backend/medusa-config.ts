@@ -54,38 +54,6 @@ const fileModules = fileUrl
     ]
   : []
 
-// Письма: при заданном SMTP_HOST — через SMTP (src/modules/smtp; локально это Mailpit из devops/docker-compose.yml),
-// без него — notification-local, который только пишет письма в лог. Отправку запускают подписчики в src/subscribers.
-const smtpHost = process.env.SMTP_HOST
-
-const notificationModule = {
-  resolve: '@medusajs/medusa/notification',
-  options: {
-    providers: [
-      smtpHost
-        ? {
-            resolve: './src/modules/smtp',
-            id: 'smtp',
-            options: {
-              channels: ['email'],
-              host: smtpHost,
-              port: Number(process.env.SMTP_PORT || 465),
-              secure: process.env.SMTP_SECURE !== 'false',
-              user: process.env.SMTP_USER || undefined,
-              password: process.env.SMTP_PASSWORD || undefined,
-              from: process.env.SMTP_FROM,
-              shop_name: process.env.SHOP_NAME || 'Магазин',
-            },
-          }
-        : {
-            resolve: '@medusajs/medusa/notification-local',
-            id: 'local',
-            options: { channels: ['email'] },
-          },
-    ],
-  },
-}
-
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -107,5 +75,5 @@ module.exports = defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === 'true',
     backendUrl: process.env.MEDUSA_BACKEND_URL,
   },
-  modules: [...redisModules, ...fileModules, notificationModule],
+  modules: [...redisModules, ...fileModules],
 })
