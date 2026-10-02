@@ -1,0 +1,69 @@
+# Управление уже развёрнутым стеком на сервере: make prod-up | prod-down | prod-restart [SERVICES=backend,frontend]
+#   up      — поднять (в порядке зависимостей); backend и frontend — через compose-rollout, с именами olisa-*
+#   down    — остановить и удалить контейнеры (в обратном порядке); данные в volume сохраняются
+#   restart — перезапустить контейнеры (короткий простой; для обновления без простоя — make deploy)
+# Сервисы: traefik, postgres, redis, rabbitmq, backend, frontend.
+- name: Стек на сервере
+  hosts: shop
+  become: true
+  gather_facts: false
+  vars:
+    stack_all: "{{ ['traefik', 'postgres', 'redis'] + (['rabbitmq'] if rabbitmq_enabled | bool else []) + ['backend', 'frontend'] }}"
+    stack_selected: "{{ (services | default('')).split(',') | map('trim') | select | list }}"
+    stack_order: "{{ stack_all | select('in', stack_selected or stack_all) | list }}"
+    stack_rollout:
+      backend: "{{ project_name }}-backend"
+      frontend: "{{ project_name }}-frontend"
+  tasks:
+    - name: Проверить параметры
+      ansible.builtin.assert:
+        that:
+          - stack_action | default('') in ['up', 'down', 'restart']
+          - stack_selected | difference(stack_all) | length == 0
+        fail_msg: "stack_action: up | down | restart; services — из {{ stack_all | join(', ') }}"
+        quiet: true
+
+    - name: Поднять сервисы
+      ansible.builtin.command:
+        cmd: >-
+          {% if item in stack_rollout %}{{ project_dir }}/bin/compose-rollout {{ project_dir }}/{{ item }} {{ item }} 300 {{ stack_rollout[item] }}
+          {% else %}docker compose up -d --wait --remove-orphans{% endif %}
+        chdir: "{{ project_dir }}/{{ item }}"
+      loop: "{{ stack_order }}"
+      register: stack_up
+      changed_when: "'unchanged' not in stack_up.stdout"
+      when: stack_action == 'up'
+
+    # Worker не обновляется rollout-скриптом
+    - name: Поднять worker
+      ansible.builtin.command:
+        cmd: docker compose up -d --no-deps backend-worker
+        chdir: "{{ project_dir }}/backend"
+      changed_when: true
+      when: stack_action == 'up' and 'backend' in stack_order
+
+    - name: Остановить сервисы
+      ansible.builtin.command:
+        cmd: docker compose down
+        chdir: "{{ project_dir }}/{{ item }}"
+      loop: "{{ stack_order | reverse | list }}"
+      changed_when: true
+      when: stack_action == 'down'
+
+    - name: Перезапустить сервисы
+      ansible.builtin.command:
+        cmd: docker compose restart
+        chdir: "{{ project_dir }}/{{ item }}"
+      loop: "{{ stack_order }}"
+      changed_when: true
+      when: stack_action == 'restart'
+
+    - name: Состояние контейнеров
+      ansible.builtin.command:
+        cmd: docker ps --filter name={{ project_name }}- --format '{{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}'
+      register: stack_ps
+      changed_when: false
+
+    - name: Показать состояние
+      ansible.builtin.debug:
+        msg: "{{ stack_ps.stdout_lines }}"

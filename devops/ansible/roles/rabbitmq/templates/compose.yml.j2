@@ -1,0 +1,50 @@
+# Управляется Ansible (roles/rabbitmq)
+name: {{ project_name }}-rabbitmq
+
+services:
+  rabbitmq:
+    image: {{ rabbitmq_image }}
+    container_name: {{ rabbitmq_host }}
+    # Имя ноды rabbit@<hostname>: данные в volume привязаны к нему, поэтому hostname фиксированный
+    hostname: {{ rabbitmq_host }}
+    restart: unless-stopped
+    env_file: rabbitmq.env
+    volumes:
+      - data:/var/lib/rabbitmq
+      - ./rabbitmq.conf:/etc/rabbitmq/conf.d/90-custom.conf:ro
+    networks:
+      internal:
+        aliases:
+          - {{ rabbitmq_host }}
+{% if rabbitmq_management_enabled %}
+      proxy: {}
+{% endif %}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+{% if rabbitmq_management_enabled %}
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: {{ docker_proxy_network }}
+      traefik.http.routers.{{ project_name }}-rabbitmq.rule: Host(`{{ rabbitmq_management_domain }}`)
+      traefik.http.routers.{{ project_name }}-rabbitmq.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-rabbitmq.middlewares: admin-allowlist@file
+      traefik.http.services.{{ project_name }}-rabbitmq.loadbalancer.server.port: "15672"
+{% endif %}
+
+networks:
+  internal:
+    name: {{ docker_internal_network }}
+    external: true
+{% if rabbitmq_management_enabled %}
+  proxy:
+    name: {{ docker_proxy_network }}
+    external: true
+{% endif %}
+
+volumes:
+  data:
+    name: {{ project_name }}-rabbitmq-data

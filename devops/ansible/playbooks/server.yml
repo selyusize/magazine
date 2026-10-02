@@ -1,0 +1,10 @@
+# Подготовка сервера: пакеты, swap, пользователь деплоя, SSH только по ключу, UFW, fail2ban, Docker.
+# Первый запуск на чистом сервере — от root: make infra-bootstrap
+- name: Сервер
+  hosts: shop
+  become: true
+  roles:
+    - role: common
+      tags: [common]
+    - role: docker
+      tags: [docker]

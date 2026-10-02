@@ -1,0 +1,72 @@
+- name: Проверить параметры traefik
+  ansible.builtin.assert:
+    that:
+      - domain | length > 0
+      - traefik_acme_email | length > 0
+      - not traefik_dashboard_enabled or vault_traefik_dashboard_password is defined
+    fail_msg: Задайте domain и acme_email в group_vars, секреты — make infra-vault
+    quiet: true
+
+- name: Установить passlib (htpasswd для дашборда)
+  ansible.builtin.apt:
+    name: python3-passlib
+    state: present
+
+- name: Каталоги traefik
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ traefik_dir }}"
+    - "{{ traefik_dir }}/dynamic"
+    - "{{ traefik_dir }}/auth"
+
+- name: Статическая конфигурация и compose
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ traefik_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0640"
+  loop:
+    - traefik.yml
+    - compose.yml
+  register: traefik_static
+
+- name: Пароль дашборда
+  community.general.htpasswd:
+    path: "{{ traefik_dir }}/auth/dashboard.htpasswd"
+    name: "{{ traefik_dashboard_user }}"
+    password: "{{ traefik_dashboard_password }}"
+    # apr1 не требует python-bcrypt (passlib несовместим с bcrypt 4.1+); пароль — 24 случайных hex-символа
+    crypt_scheme: apr_md5_crypt
+    owner: root
+    group: root
+    mode: "0640"
+  when: traefik_dashboard_enabled
+  register: traefik_htpasswd
+
+# Каталог dynamic traefik отслеживает сам — без перезапуска
+- name: Динамическая конфигурация (middlewares, TLS)
+  ansible.builtin.template:
+    src: "dynamic/{{ item }}.j2"
+    dest: "{{ traefik_dir }}/dynamic/{{ item }}"
+    owner: root
+    group: root
+    mode: "0640"
+  loop:
+    - middlewares.yml
+    - tls.yml
+
+- name: Запустить traefik
+  community.docker.docker_compose_v2:
+    project_src: "{{ traefik_dir }}"
+    state: present
+    pull: missing
+    remove_orphans: true
+    recreate: "{{ 'always' if traefik_static is changed or traefik_htpasswd is changed else 'auto' }}"
+    wait: true
+    wait_timeout: 120

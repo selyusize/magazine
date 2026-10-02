@@ -1,0 +1,63 @@
+# Управляется Ansible (roles/traefik)
+name: {{ project_name }}-traefik
+
+services:
+  socket-proxy:
+    image: {{ traefik_socket_proxy_image }}
+    container_name: {{ project_name }}-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      EVENTS: 1
+      PING: 1
+      VERSION: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket
+
+  traefik:
+    image: {{ traefik_image }}
+    container_name: {{ project_name }}-traefik
+    restart: unless-stopped
+    depends_on:
+      - socket-proxy
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+      - "443:443/udp"
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - ./auth:/etc/traefik/auth:ro
+      - acme:/letsencrypt
+    networks:
+      - socket
+      - proxy
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+{% if traefik_dashboard_enabled %}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.{{ project_name }}-dashboard.rule: Host(`{{ traefik_dashboard_domain }}`)
+      traefik.http.routers.{{ project_name }}-dashboard.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-dashboard.service: api@internal
+      traefik.http.routers.{{ project_name }}-dashboard.middlewares: admin-allowlist@file,dashboard-auth@file
+{% endif %}
+
+networks:
+  socket:
+    internal: true
+  proxy:
+    name: {{ docker_proxy_network }}
+    external: true
+
+volumes:
+  acme:
+    name: {{ project_name }}-traefik-acme

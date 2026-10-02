@@ -1,0 +1,99 @@
+# Окружение production. Секреты — в vault.yml рядом: make infra-vault (создать), make infra-vault-edit.
+# Настройки отдельных сервисов (образы, тюнинг БД, таймауты) — в roles/*/defaults/main.yml,
+# переопределять их можно здесь же.
+
+# ─── Обязательно заполнить ──────────────────────────────────────────────────
+# Домен витрины. A-записи домена и поддоменов (www, api, traefik, rabbitmq) должны смотреть
+# на сервер до запуска traefik — иначе Let's Encrypt не выдаст сертификаты.
+domain: example.ru
+# Почта для Let's Encrypt (предупреждения об истечении сертификатов)
+acme_email: admin@example.ru
+# Публичные SSH-ключи пользователя деплоя: ваш и ключ CI (пара к секрету SSH_PRIVATE_KEY).
+# Список эксклюзивный: ключи, которых здесь нет, будут удалены с сервера.
+deploy_authorized_keys: []
+#  - ssh-ed25519 AAAA... you@laptop
+#  - ssh-ed25519 AAAA... github-actions
+# Образы приложений: <image_prefix>-backend, <image_prefix>-frontend.
+# CI пушит в ghcr.io/<owner>/<repo> (в нижнем регистре) и передаёт префикс сам — это значение для ручного деплоя.
+image_prefix: ghcr.io/owner/magazine-template
+
+# ─── Почта ──────────────────────────────────────────────────────────────────
+# SMTP для писем магазина: заказ оформлен, сброс пароля, приглашение в админку, приветствие.
+# Пароль — vault_smtp_password. Пустой smtp_host — письма не отправляются, только пишутся в лог backend.
+#   Яндекс 360:  smtp.yandex.ru, 465 (пароль приложения)
+#   Mail.ru:     smtp.mail.ru, 465 (пароль для внешних приложений)
+#   Unisender Go / SendPulse / Mailganer — SMTP-доступ из их кабинета
+shop_name: Olisa
+smtp_host: ""
+smtp_port: 465
+smtp_secure: true            # false — STARTTLS на 587
+smtp_user: shop@example.ru
+smtp_from: "{{ shop_name }} <{{ smtp_user }}>"
+
+# ─── Домены ─────────────────────────────────────────────────────────────────
+frontend_domain: "{{ domain }}"
+# www.<домен> → <домен> (301)
+frontend_redirect_www: true
+# Store/Admin API и админка Medusa: https://api.<домен>/app
+backend_domain: "api.{{ domain }}"
+
+# Подсети с доступом к служебным UI: дашборд traefik, RabbitMQ, админка Medusa (/app, /admin).
+# Например, офис и VPN: ["198.51.100.0/24", "203.0.113.7/32"]
+admin_allowlist:
+  - 0.0.0.0/0
+  - ::/0
+
+# ─── Опциональные сервисы ───────────────────────────────────────────────────
+# Medusa работает на PostgreSQL + Redis; RabbitMQ — для своих модулей и интеграций (1С, ERP, очереди).
+# Адрес передаётся в backend как RABBITMQ_URL.
+rabbitmq_enabled: true
+
+# Publishable API key Medusa для сборки фронта. Пусто — берётся из БД (первый неотозванный ключ).
+medusa_publishable_key: ""
+
+# ─── Выгрузка с прода (make pull, аналог dl deploy) ────────────────────────
+# Таблицы, данные которых не выгружаются (структура выгружается всегда). Можно шаблоны: workflow_*.
+# Разово добавить ещё: make pull-db EXCLUDE=order,cart
+pull_excluded_tables:
+  - workflow_execution     # журнал воркфлоу: большой и локально не нужен
+  - notification           # отправленные письма и SMS
+  - auth_identity          # логины и хеши паролей покупателей и админов (152-ФЗ)
+  - provider_identity
+
+# ─── Сервер ─────────────────────────────────────────────────────────────────
+deploy_user: deploy
+
+# ─── Внутреннее (обычно менять не нужно) ────────────────────────────────────
+# Префикс контейнеров (olisa-postgres, olisa-backend…), каталогов, volume и сетевых алиасов.
+# Разные магазины на одном сервере — разные имена.
+project_name: olisa
+project_dir: "/opt/{{ project_name }}"
+# proxy — traefik ↔ публичные сервисы (есть выход в интернет);
+# internal — приложения ↔ БД (internal: true — без выхода в интернет, наружу не публикуется)
+docker_proxy_network: proxy
+docker_internal_network: internal
+
+backup_dir: "{{ project_dir }}/backups"
+backup_keep_days: 7
+
+# Реестр образов: с этими данными сервер делает docker pull.
+# CI передаёт свой GITHUB_TOKEN через env REGISTRY_USERNAME / REGISTRY_PASSWORD, локально — из vault.
+registry: "{{ image_prefix.split('/') | first }}"
+registry_username: "{{ lookup('ansible.builtin.env', 'REGISTRY_USERNAME') or vault_registry_username | default('') }}"
+registry_password: "{{ lookup('ansible.builtin.env', 'REGISTRY_PASSWORD') or vault_registry_password | default('') }}"
+
+# Подключения между сервисами: хосты — сетевые алиасы контейнеров
+postgres_host: "{{ project_name }}-postgres"
+postgres_db: medusa
+postgres_user: medusa
+postgres_password: "{{ vault_postgres_password }}"
+
+redis_host: "{{ project_name }}-redis"
+redis_password: "{{ vault_redis_password }}"
+
+rabbitmq_host: "{{ project_name }}-rabbitmq"
+rabbitmq_user: shop
+rabbitmq_password: "{{ vault_rabbitmq_password }}"
+rabbitmq_vhost: "{{ project_name }}"
+
+backend_host: "{{ project_name }}-backend"

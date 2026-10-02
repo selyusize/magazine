@@ -1,0 +1,12 @@
+# Весь стек с нуля или приведение сервера к описанному состоянию: make infra-site
+- name: Сервер
+  ansible.builtin.import_playbook: server.yml
+
+- name: Traefik
+  ansible.builtin.import_playbook: traefik.yml
+
+- name: Хранилища и брокер сообщений
+  ansible.builtin.import_playbook: data.yml
+
+- name: Приложения
+  ansible.builtin.import_playbook: deploy.yml

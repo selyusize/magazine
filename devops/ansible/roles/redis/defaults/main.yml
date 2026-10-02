@@ -1,0 +1,2 @@
+redis_image: redis:8-alpine
+redis_dir: "{{ project_dir }}/redis"

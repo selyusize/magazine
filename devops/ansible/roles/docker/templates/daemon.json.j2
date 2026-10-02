@@ -1,0 +1,11 @@
+{
+  "log-driver": "local",
+  "log-opts": {
+    "max-size": "{{ docker_log_max_size }}",
+    "max-file": "{{ docker_log_max_file }}"
+  },
+{% if docker_registry_mirrors %}
+  "registry-mirrors": {{ docker_registry_mirrors | to_json }},
+{% endif %}
+  "live-restore": true
+}

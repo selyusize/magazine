@@ -1,0 +1,18 @@
+# CI передаёт тег sha-<commit>: -e backend_image_tag=sha-abc1234
+backend_image_tag: latest
+backend_image: "{{ image_prefix }}-backend:{{ backend_image_tag }}"
+backend_dir: "{{ project_dir }}/backend"
+# Сколько ждать healthcheck нового API-сервера, прежде чем откатиться на старый
+backend_rollout_timeout: 300
+
+backend_jwt_expires_in: 7d
+backend_jwt_secret: "{{ vault_medusa_jwt_secret }}"
+backend_cookie_secret: "{{ vault_medusa_cookie_secret }}"
+backend_auth_mfa_encryption_key: "{{ vault_medusa_auth_mfa_encryption_key }}"
+
+backend_store_cors: "https://{{ frontend_domain }}"
+backend_admin_cors: "https://{{ backend_domain }}"
+backend_auth_cors: "{{ backend_store_cors }},{{ backend_admin_cors }}"
+
+# Дополнительные несекретные переменные окружения; секретные — в vault: vault_backend_env
+backend_env: {}

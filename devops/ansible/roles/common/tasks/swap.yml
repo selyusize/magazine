@@ -1,0 +1,16 @@
+- name: Создать и включить swap-файл
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      fallocate -l {{ common_swap_size_mb | int }}M /swapfile
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+    creates: /swapfile
+    executable: /bin/bash
+
+- name: Подключать swap при загрузке
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: /swapfile none swap sw 0 0
+    state: present

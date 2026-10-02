@@ -1,0 +1,76 @@
+- name: Проверить параметры деплоя backend
+  ansible.builtin.assert:
+    that:
+      - domain | length > 0
+      - image_prefix | length > 0
+      - vault_medusa_jwt_secret is defined
+      - vault_medusa_cookie_secret is defined
+      - vault_medusa_auth_mfa_encryption_key is defined
+    fail_msg: Задайте domain и image_prefix в group_vars, секреты Medusa — make infra-vault
+    quiet: true
+
+- name: Каталог backend
+  ansible.builtin.file:
+    path: "{{ backend_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Compose backend
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ backend_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Переменные окружения backend
+  ansible.builtin.template:
+    src: backend.env.j2
+    dest: "{{ backend_dir }}/backend.env"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+
+- name: Вход в реестр образов
+  ansible.builtin.include_role:
+    name: docker
+    tasks_from: registry_login
+
+- name: Скачать образ backend
+  community.docker.docker_image_pull:
+    name: "{{ backend_image }}"
+    pull: always
+
+# Идемпотентно: Medusa применяет только новые миграции и migration-scripts.
+# Упали миграции — деплой останавливается, работает прежняя версия.
+- name: Миграции БД
+  ansible.builtin.command:
+    cmd: docker compose run --rm --name {{ project_name }}-backend-migrate backend-migrate
+    chdir: "{{ backend_dir }}"
+  changed_when: false
+
+- name: Обновить API-сервер без простоя
+  ansible.builtin.command:
+    cmd: "{{ project_dir }}/bin/compose-rollout {{ backend_dir }} backend {{ backend_rollout_timeout }} {{ backend_host }}"
+  register: backend_rollout
+  changed_when: "'ROLLOUT: unchanged' not in backend_rollout.stdout"
+
+- name: Обновить worker
+  community.docker.docker_compose_v2:
+    project_src: "{{ backend_dir }}"
+    services: [backend-worker]
+    dependencies: false
+    state: present
+    pull: never
+
+- name: Publishable key
+  ansible.builtin.include_tasks: publishable_key.yml
+
+- name: Показать publishable key
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'Publishable key: ' ~ backend_publishable_key if backend_publishable_key
+      else 'Publishable key не найден — создайте его в админке: Settings → Publishable API Keys' }}

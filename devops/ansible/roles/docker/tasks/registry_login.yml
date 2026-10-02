@@ -1,0 +1,8 @@
+# Подключается из ролей приложений: include_role name=docker tasks_from=registry_login
+- name: Войти в реестр образов
+  community.docker.docker_login:
+    registry_url: "{{ registry }}"
+    username: "{{ registry_username }}"
+    password: "{{ registry_password }}"
+  no_log: true
+  when: registry_username | length > 0 and registry_password | length > 0

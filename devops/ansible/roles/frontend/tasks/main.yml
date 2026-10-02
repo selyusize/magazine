@@ -1,0 +1,48 @@
+- name: Проверить параметры деплоя frontend
+  ansible.builtin.assert:
+    that:
+      - frontend_domain | length > 0
+      - image_prefix | length > 0
+    fail_msg: Задайте domain и image_prefix в group_vars
+    quiet: true
+
+- name: Каталог frontend
+  ansible.builtin.file:
+    path: "{{ frontend_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Compose frontend
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ frontend_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Переменные окружения frontend
+  ansible.builtin.template:
+    src: frontend.env.j2
+    dest: "{{ frontend_dir }}/frontend.env"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+
+- name: Вход в реестр образов
+  ansible.builtin.include_role:
+    name: docker
+    tasks_from: registry_login
+
+- name: Скачать образ frontend
+  community.docker.docker_image_pull:
+    name: "{{ frontend_image }}"
+    pull: always
+
+- name: Обновить витрину без простоя
+  ansible.builtin.command:
+    cmd: "{{ project_dir }}/bin/compose-rollout {{ frontend_dir }} frontend {{ frontend_rollout_timeout }} {{ project_name }}-frontend"
+  register: frontend_rollout
+  changed_when: "'ROLLOUT: unchanged' not in frontend_rollout.stdout"

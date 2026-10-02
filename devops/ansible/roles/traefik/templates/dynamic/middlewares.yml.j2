@@ -1,0 +1,85 @@
+# Управляется Ansible (roles/traefik). Подключение в labels сервисов: <имя>@file
+http:
+  middlewares:
+    # Вешается на все роутеры websecure (entryPoint). CSP — у каждого сервиса своя:
+    # витрина ставит её сама (nonce, frontend/proxy.ts), Medusa — api-csp / admin-csp ниже
+    secure-headers:
+      headers:
+        stsSeconds: {{ traefik_hsts_seconds }}
+        stsIncludeSubdomains: {{ traefik_hsts_include_subdomains | bool | to_json }}
+        stsPreload: {{ traefik_hsts_preload | bool | to_json }}
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(self)"
+        # Не раскрывать стек
+        customResponseHeaders:
+          Server: ""
+          X-Powered-By: ""
+
+    api-csp:
+      headers:
+        contentSecurityPolicy: "{{ traefik_api_csp }}"
+        customResponseHeaders:
+          X-Frame-Options: DENY
+
+    admin-csp:
+      headers:
+        contentSecurityPolicy: "{{ traefik_admin_csp }}"
+        customResponseHeaders:
+          X-Frame-Options: DENY
+
+    # От флуда с одного IP. За CDN (traefik_trusted_ips) IP клиента берётся из X-Forwarded-For
+    rate-limit:
+      rateLimit:
+        average: {{ traefik_rate_limit_average }}
+        burst: {{ traefik_rate_limit_burst }}
+{% if traefik_trusted_ips %}
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+{% endif %}
+
+    # Подбор паролей: вход, регистрация, сброс пароля
+    auth-rate-limit:
+      rateLimit:
+        average: {{ traefik_auth_rate_limit_per_minute }}
+        period: 1m
+        burst: {{ traefik_auth_rate_limit_per_minute }}
+{% if traefik_trusted_ips %}
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+{% endif %}
+
+    # Сжимает ответы без Content-Encoding (Medusa API); Next.js сжимает сам
+    compress:
+      compress: {}
+
+    # Повтор на другой контейнер, если бэкенд недоступен (выкат, рестарт). Только идемпотентные методы:
+    # POST/PATCH не повторяются. Большие тела (загрузки в админке) проходят без ограничений
+    retry:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    redirect-to-apex:
+      redirectRegex:
+        regex: '^https?://www\.(.+)'
+        replacement: 'https://${1}'
+        permanent: true
+
+    # Служебные UI: дашборд traefik, RabbitMQ, админка Medusa
+    admin-allowlist:
+      ipAllowList:
+        sourceRange: {{ admin_allowlist | to_json }}
+{% if traefik_trusted_ips %}
+        ipStrategy:
+          depth: 1
+{% endif %}
+
+{% if traefik_dashboard_enabled %}
+    dashboard-auth:
+      basicAuth:
+        usersFile: /etc/traefik/auth/dashboard.htpasswd
+        removeHeader: true
+{% endif %}

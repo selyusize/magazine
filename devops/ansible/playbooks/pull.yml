@@ -1,0 +1,93 @@
+# Выгрузка с прода на локальную машину (аналог `dl deploy`): БД и загрузки Medusa → devops/dumps/.
+# Структура всех таблиц — всегда; данные таблиц из pull_excluded_tables (и -e exclude=…) — нет.
+#   make pull                          # БД + файлы, затем импорт в локальный postgres
+#   make pull-db EXCLUDE=order,cart    # дополнительно не выгружать данные этих таблиц (можно шаблоны: order_*)
+#   make pull-db TABLES=product,product_variant   # только данные этих таблиц (схема локально та же — миграции применены)
+#   make pull-files                    # только загрузки (картинки товаров)
+- name: Выгрузка с прода
+  hosts: shop[0]
+  become: true
+  gather_facts: false
+  vars:
+    pull_local_dir: "{{ playbook_dir }}/../../dumps"
+    pull_remote_dir: "{{ backup_dir }}/pull"
+    pull_only_tables: "{{ (tables | default('')).split(',') | map('trim') | select | list }}"
+    pull_exclude: "{{ pull_excluded_tables + ((exclude | default('')).split(',') | map('trim') | select | list) }}"
+  tasks:
+    # Один штамп времени на все файлы выгрузки
+    - name: Время выгрузки
+      ansible.builtin.set_fact:
+        pull_stamp: "{{ lookup('ansible.builtin.pipe', 'date +%Y%m%d-%H%M%S') }}"
+      tags: [db, files]
+
+    - name: Каталог для выгрузки на сервере
+      ansible.builtin.file:
+        path: "{{ pull_remote_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      tags: [db, files]
+
+    - name: Локальный каталог devops/dumps
+      ansible.builtin.file:
+        path: "{{ pull_local_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      tags: [db, files]
+
+    # --- PostgreSQL (Medusa) ---------------------------------------------------
+    - name: Дамп PostgreSQL
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          docker exec {{ postgres_host }} pg_dump -U {{ postgres_user | quote }} -d {{ postgres_db | quote }}
+          --format=custom --no-owner --no-acl
+          {% if pull_only_tables %}--data-only {% for t in pull_only_tables %}--table={{ t | quote }} {% endfor %}
+          {% else %}{% for t in pull_exclude %}--exclude-table-data={{ t | quote }} {% endfor %}{% endif %}
+          > {{ pull_remote_dir }}/postgres.dump
+        executable: /bin/bash
+      changed_when: false
+      tags: [db]
+
+    - name: Скачать дамп PostgreSQL
+      ansible.builtin.fetch:
+        src: "{{ pull_remote_dir }}/postgres.dump"
+        dest: "{{ pull_local_dir }}/postgres-{{ pull_stamp }}{{ '-tables' if pull_only_tables else '' }}.dump"
+        flat: true
+      tags: [db]
+
+    # Ссылки на картинки в БД — абсолютные (https://api.<домен>/static/…): импорт заменит их на локальные
+    - name: Параметры дампа для импорта
+      ansible.builtin.copy:
+        dest: "{{ pull_local_dir }}/postgres-{{ pull_stamp }}{{ '-tables' if pull_only_tables else '' }}.env"
+        content: |
+          PROD_FILE_URL=https://{{ backend_domain }}/static
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      tags: [db]
+
+    # --- Загрузки Medusa (картинки товаров) -------------------------------------
+    - name: Архив загрузок Medusa
+      ansible.builtin.command:
+        cmd: >-
+          docker run --rm -v {{ project_name }}-backend-uploads:/uploads:ro -v {{ pull_remote_dir }}:/out
+          alpine tar czf /out/uploads.tar.gz -C /uploads .
+      changed_when: false
+      tags: [files]
+
+    - name: Скачать загрузки
+      ansible.builtin.fetch:
+        src: "{{ pull_remote_dir }}/uploads.tar.gz"
+        dest: "{{ pull_local_dir }}/uploads-{{ pull_stamp }}.tar.gz"
+        flat: true
+      tags: [files]
+
+    - name: Удалить временные файлы на сервере
+      ansible.builtin.file:
+        path: "{{ pull_remote_dir }}"
+        state: absent
+      tags: [db, files]

@@ -1,0 +1,12 @@
+autoInstallPeers: true
+
+overrides:
+  tsconfig-paths: ^4.2.0
+
+allowBuilds:
+  "@medusajs/telemetry": true
+  "@swc/core": true
+  esbuild: true
+  msgpackr-extract: true
+  protobufjs: true
+  core-js: false

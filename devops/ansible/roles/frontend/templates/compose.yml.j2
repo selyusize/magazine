@@ -1,0 +1,47 @@
+# Управляется Ansible (roles/frontend). Обновляется скриптом compose-rollout без простоя;
+# container_name нельзя (при выкате работают два контейнера) — имя {{ project_name }}-frontend ставит скрипт.
+name: {{ project_name }}-frontend
+
+services:
+  frontend:
+    image: {{ frontend_image }}
+    restart: unless-stopped
+    env_file: frontend.env
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # Кеш Next (ISR, data cache, картинки) переживает редеплой
+      - cache:/app/.next/cache
+    networks:
+      - proxy
+    # Проверяет только процесс Next — недоступность Medusa не должна снимать витрину с балансировки
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.http.services.{{ project_name }}-frontend.loadbalancer.server.port: "3000"
+      traefik.http.routers.{{ project_name }}-frontend.rule: Host(`{{ frontend_domain }}`)
+      traefik.http.routers.{{ project_name }}-frontend.entrypoints: websecure
+      # Вход и регистрация (Server Actions — POST на страницу) — с лимитом попыток
+      traefik.http.routers.{{ project_name }}-frontend-auth.rule: >-
+        Host(`{{ frontend_domain }}`) && Method(`POST`) && (Path(`/login`) || Path(`/register`))
+      traefik.http.routers.{{ project_name }}-frontend-auth.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-frontend-auth.middlewares: auth-rate-limit@file
+{% if frontend_redirect_www %}
+      traefik.http.routers.{{ project_name }}-frontend-www.rule: Host(`www.{{ frontend_domain }}`)
+      traefik.http.routers.{{ project_name }}-frontend-www.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-frontend-www.middlewares: redirect-to-apex@file
+{% endif %}
+
+networks:
+  proxy:
+    name: {{ docker_proxy_network }}
+    external: true
+
+volumes:
+  cache:
+    name: {{ project_name }}-frontend-cache

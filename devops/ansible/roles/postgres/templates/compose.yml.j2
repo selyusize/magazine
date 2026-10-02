@@ -1,0 +1,36 @@
+# Управляется Ansible (roles/postgres)
+name: {{ project_name }}-postgres
+
+services:
+  postgres:
+    image: {{ postgres_image }}
+    container_name: {{ postgres_host }}
+    restart: unless-stopped
+    env_file: postgres.env
+    command:
+      - postgres
+      - -c
+      - shared_buffers={{ postgres_shared_buffers }}
+      - -c
+      - max_connections={{ postgres_max_connections }}
+    shm_size: 256mb
+    volumes:
+      - data:/var/lib/postgresql/data
+    networks:
+      internal:
+        aliases:
+          - {{ postgres_host }}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  internal:
+    name: {{ docker_internal_network }}
+    external: true
+
+volumes:
+  data:
+    name: {{ project_name }}-postgres-data

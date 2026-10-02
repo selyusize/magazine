@@ -1,0 +1,32 @@
+common_timezone: Europe/Moscow
+# Swap создаётся, только если на сервере его нет совсем; 0 — не создавать
+common_swap_size_mb: 2048
+# Порт SSH для правил UFW и fail2ban (sshd не перенастраивается)
+common_ssh_port: 22
+# no — запретить вход root совсем (убедитесь, что вход под deploy_user работает)
+common_ssh_permit_root_login: prohibit-password
+common_journald_max_use: 500M
+common_fail2ban_bantime: 1h
+common_fail2ban_findtime: 10m
+common_fail2ban_maxretry: 5
+
+common_packages:
+  - ca-certificates
+  - cron
+  - curl
+  - fail2ban
+  - gnupg
+  - htop
+  - jq
+  - ncdu
+  - python3-requests
+  - python3-systemd
+  - rsync
+  - ufw
+  - unattended-upgrades
+
+common_sysctl:
+  vm.swappiness: 10
+  # Redis: фоновое сохранение (fork) не падает при нехватке памяти
+  vm.overcommit_memory: 1
+  net.core.somaxconn: 4096

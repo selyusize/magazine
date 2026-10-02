@@ -1,0 +1,44 @@
+name: Ansible
+description: Python, ansible-core, коллекции из devops/ansible/requirements.yml и SSH-ключ деплоя
+
+inputs:
+  ssh-private-key:
+    description: Приватный ключ пользователя деплоя (публичная часть — в deploy_authorized_keys)
+    required: true
+  ssh-known-hosts:
+    description: Ключи хоста сервера (вывод ssh-keyscan <ip>)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.13"
+
+    - name: Установить ansible-core
+      shell: bash
+      run: pip install "ansible-core~=2.21.0"
+
+    - name: Кеш коллекций
+      uses: actions/cache@v6
+      with:
+        path: ~/.ansible/collections
+        key: ansible-collections-${{ hashFiles('devops/ansible/requirements.yml') }}
+
+    - name: Установить коллекции
+      shell: bash
+      working-directory: devops/ansible
+      run: ansible-galaxy collection install -r requirements.yml
+
+    - name: SSH-ключ деплоя
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+        SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+      run: |
+        install -d -m 700 ~/.ssh
+        printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+        chmod 600 ~/.ssh/id_deploy
+        printf '%s\n' "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+        printf 'Host *\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n' >> ~/.ssh/config

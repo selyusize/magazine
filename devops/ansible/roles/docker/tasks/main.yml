@@ -1,0 +1,94 @@
+- name: Удалить Docker из репозиториев дистрибутива
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose
+      - docker-compose-v2
+      - docker-doc
+      - podman-docker
+      - containerd
+      - runc
+    state: absent
+
+- name: Установить python3-debian (для deb822_repository)
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Подключить репозиторий Docker
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: ["{{ docker_apt_url }}"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [stable]
+    architectures: ["{{ docker_apt_arch }}"]
+    signed_by: "{{ docker_apt_url }}/gpg"
+
+- name: Установить Docker Engine и Compose
+  ansible.builtin.apt:
+    name: "{{ docker_packages }}"
+    state: present
+    update_cache: true
+
+- name: Настроить демон Docker
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Перезапустить Docker
+
+- name: Запустить Docker
+  ansible.builtin.systemd_service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Применить настройки демона до запуска контейнеров
+  ansible.builtin.meta: flush_handlers
+
+- name: Добавить пользователя деплоя в группу docker
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    groups: [docker]
+    append: true
+
+- name: Сеть traefik ↔ публичные сервисы
+  community.docker.docker_network:
+    name: "{{ docker_proxy_network }}"
+
+- name: Внутренняя сеть приложений и БД (без выхода в интернет)
+  community.docker.docker_network:
+    name: "{{ docker_internal_network }}"
+    internal: true
+
+- name: Каталоги проекта
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ project_dir }}"
+    - "{{ project_dir }}/bin"
+
+- name: Скрипт обновления сервисов без простоя
+  ansible.builtin.copy:
+    src: compose-rollout
+    dest: "{{ project_dir }}/bin/compose-rollout"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Еженедельная очистка неиспользуемых образов
+  ansible.builtin.cron:
+    name: docker image prune
+    cron_file: "{{ project_name }}-docker-prune"
+    user: root
+    special_time: weekly
+    job: docker image prune -af --filter until={{ docker_image_prune_until }} > /dev/null

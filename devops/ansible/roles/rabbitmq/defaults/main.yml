@@ -1,0 +1,7 @@
+rabbitmq_image: rabbitmq:4.3-management-alpine
+rabbitmq_dir: "{{ project_dir }}/rabbitmq"
+# Веб-интерфейс управления через traefik (доступ — admin_allowlist + логин RabbitMQ)
+rabbitmq_management_enabled: true
+rabbitmq_management_domain: "rabbitmq.{{ domain }}"
+rabbitmq_memory_high_watermark: 0.4
+rabbitmq_disk_free_limit: 1GB

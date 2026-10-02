@@ -1,0 +1,36 @@
+# Для CI: build-args образа витрины (NEXT_PUBLIC_* вшиваются в бандл при сборке) → локальный файл KEY=VALUE.
+# Publishable key — medusa_publishable_key из group_vars или первый неотозванный ключ из БД (значит, backend уже задеплоен).
+#   ansible-playbook playbooks/frontend-build-args.yml -e build_args_file=/tmp/frontend.args
+- name: Build-args витрины
+  hosts: shop[0]
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Проверить путь к файлу
+      ansible.builtin.assert:
+        that: build_args_file is defined and build_args_file | length > 0
+        fail_msg: Передайте -e build_args_file=<путь>
+        quiet: true
+
+    - name: Найти publishable key в БД
+      ansible.builtin.include_role:
+        name: backend
+        tasks_from: publishable_key
+      when: medusa_publishable_key | length == 0
+
+    - name: Проверить publishable key
+      ansible.builtin.assert:
+        that: (medusa_publishable_key or backend_publishable_key | default('')) | length > 0
+        fail_msg: >-
+          Publishable key не найден: задеплойте backend (миграции создают ключ) или задайте medusa_publishable_key
+        quiet: true
+
+    - name: Записать build-args
+      ansible.builtin.copy:
+        dest: "{{ build_args_file }}"
+        content: |
+          NEXT_PUBLIC_API_URL=https://{{ backend_domain }}
+          NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY={{ medusa_publishable_key or backend_publishable_key }}
+        mode: "0600"
+      delegate_to: localhost
+      become: false

@@ -1,0 +1,9 @@
+# Мажорную версию меняйте только с переносом данных (pg_dump/pg_restore) — volume несовместим между версиями
+postgres_image: postgres:17-alpine
+postgres_dir: "{{ project_dir }}/postgres"
+postgres_shared_buffers: 256MB
+postgres_max_connections: 100
+
+postgres_backup_enabled: true
+postgres_backup_hour: "3"
+postgres_backup_minute: "15"

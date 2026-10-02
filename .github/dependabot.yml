@@ -1,0 +1,24 @@
+# Обновления зависимостей и базовых образов: PR раз в неделю, CI проверяет каждый
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      medusa:
+        patterns: ["@medusajs/*"]
+  - package-ecosystem: docker
+    directory: /devops
+    schedule:
+      interval: weekly

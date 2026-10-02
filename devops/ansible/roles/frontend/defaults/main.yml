@@ -1,0 +1,9 @@
+# CI передаёт тег sha-<commit>: -e frontend_image_tag=sha-abc1234.
+# NEXT_PUBLIC_* вшиты в образ при сборке (см. playbooks/frontend-build-args.yml)
+frontend_image_tag: latest
+frontend_image: "{{ image_prefix }}-frontend:{{ frontend_image_tag }}"
+frontend_dir: "{{ project_dir }}/frontend"
+frontend_rollout_timeout: 180
+
+# Дополнительные переменные окружения рантайма Next.js
+frontend_env: {}

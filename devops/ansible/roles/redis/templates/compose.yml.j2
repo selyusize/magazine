@@ -1,0 +1,39 @@
+# Управляется Ansible (roles/redis). Medusa держит в Redis события, workflows, блокировки и сессии админки —
+# поэтому AOF и noeviction: данные не вытесняются при нехватке памяти.
+name: {{ project_name }}-redis
+
+services:
+  redis:
+    image: {{ redis_image }}
+    container_name: {{ redis_host }}
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory-policy
+      - noeviction
+      - --requirepass
+      - ${REDIS_PASSWORD:?}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?}
+    volumes:
+      - data:/data
+    networks:
+      internal:
+        aliases:
+          - {{ redis_host }}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  internal:
+    name: {{ docker_internal_network }}
+    external: true
+
+volumes:
+  data:
+    name: {{ project_name }}-redis-data

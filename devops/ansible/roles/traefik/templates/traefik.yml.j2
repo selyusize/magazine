@@ -1,0 +1,77 @@
+# Управляется Ansible (roles/traefik). Статическая конфигурация: изменения применяются пересозданием контейнера.
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: {{ traefik_log_level }}
+  format: json
+
+accessLog:
+  format: json
+
+api:
+  dashboard: {{ traefik_dashboard_enabled | bool | to_json }}
+
+# Для healthcheck контейнера
+ping:
+  entryPoint: traefik
+
+entryPoints:
+  # Внутренняя: ping и API, наружу не публикуется
+  traefik:
+    address: ":8080"
+    http:
+      aliasHeadersStrategy: delete
+  web:
+    address: ":80"
+    http:
+      aliasHeadersStrategy: delete
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+    http3: {}
+    http:
+      # Удалять заголовки-«двойники» (X_Real_IP вместо X-Real-IP) — защита от подмены заголовков traefik
+      aliasHeadersStrategy: delete
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - rate-limit@file
+        - secure-headers@file
+        - compress@file
+        - retry@file
+{% if traefik_trusted_ips %}
+    forwardedHeaders:
+      trustedIPs: {{ traefik_trusted_ips | to_json }}
+{% endif %}
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: {{ traefik_acme_email }}
+      storage: /letsencrypt/acme{{ '-staging' if traefik_acme_staging else '' }}.json
+{% if traefik_acme_staging %}
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+{% endif %}
+      httpChallenge:
+        entryPoint: web
+
+# Короткий dial: при выкате остановленный контейнер ещё пару секунд числится в балансировке — запрос
+# в его исчезнувший IP не висит 30 с, а быстро уходит в retry на живой контейнер
+serversTransport:
+  forwardingTimeouts:
+    dialTimeout: 2s
+
+providers:
+  docker:
+    endpoint: tcp://socket-proxy:2375
+    exposedByDefault: false
+    network: {{ docker_proxy_network }}
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true

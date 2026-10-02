@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Управляется Ansible (roles/postgres). Дамп БД {{ postgres_db }} (формат custom), хранится {{ backup_keep_days }} дн.
+# Восстановление:
+#   docker compose -f {{ postgres_dir }}/compose.yml exec -T postgres \
+#     pg_restore -U {{ postgres_user }} -d {{ postgres_db }} --clean --if-exists < <файл>.dump
+set -euo pipefail
+
+dir={{ backup_dir }}/postgres
+file="$dir/{{ postgres_db }}-$(date +%F-%H%M).dump"
+trap 'rm -f "$file.tmp"' EXIT
+
+docker compose -f {{ postgres_dir }}/compose.yml exec -T postgres \
+  sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom' > "$file.tmp"
+mv "$file.tmp" "$file"
+find "$dir" -name '*.dump' -mtime +{{ backup_keep_days }} -delete
+echo "OK: $file"

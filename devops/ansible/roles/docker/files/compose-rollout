@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Обновление сервиса docker compose без простоя:
+#   1. рядом со старыми контейнерами поднимаются новые (--scale ×2 --no-recreate);
+#   2. ждём, пока новые станут healthy — до этого Traefik не отправляет в них трафик;
+#   3. останавливаем старые. Если новые не поднялись — удаляем их, старые продолжают работать.
+# Сервис не должен публиковать порты на хост и задавать container_name.
+#
+# Использование: compose-rollout <каталог compose-проекта> <сервис> [таймаут, сек] [имя контейнера]
+# Имя контейнера (например olisa-backend) присваивается после выката, когда старый контейнер удалён.
+# Последняя строка вывода — ROLLOUT: started | unchanged | updated (по ней Ansible определяет changed).
+set -euo pipefail
+
+dir=${1:?каталог compose-проекта}
+service=${2:?имя сервиса}
+timeout=${3:-300}
+name=${4:-}
+# Пауза между готовностью новых контейнеров и остановкой старых: Traefik перестраивает маршруты по событиям Docker
+drain=${ROLLOUT_DRAIN_SECONDS:-5}
+
+cd "$dir"
+
+state_of() {
+  docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$1"
+}
+
+# Единственному контейнеру сервиса — постоянное имя (compose находит контейнеры по labels, не по имени)
+rename() {
+  [[ -n $name ]] || return 0
+  local ids current
+  mapfile -t ids < <(docker compose ps -q "$service")
+  (( ${#ids[@]} == 1 )) || return 0
+  current=$(docker inspect -f '{{.Name}}' "${ids[0]}")
+  [[ ${current#/} == "$name" ]] || docker rename "${ids[0]}" "$name"
+}
+
+mapfile -t old < <(docker compose ps -q "$service")
+
+if (( ${#old[@]} == 0 )); then
+  docker compose up -d --no-deps --wait --wait-timeout "$timeout" "$service"
+  rename
+  echo "ROLLOUT: started"
+  exit 0
+fi
+
+# Конфиг и образ не менялись — ничего не делаем
+want_hash=$(docker compose config --hash="$service" | awk '{ print $2 }')
+want_image=$(docker image inspect -f '{{.Id}}' \
+  "$(docker compose config --format json | jq -r --arg s "$service" '.services[$s].image')")
+outdated=0
+for id in "${old[@]}"; do
+  hash=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$id")
+  image=$(docker inspect -f '{{.Image}}' "$id")
+  if [[ $hash != "$want_hash" || $image != "$want_image" ]]; then
+    outdated=1
+  fi
+done
+if (( ! outdated )); then
+  rename
+  echo "ROLLOUT: unchanged"
+  exit 0
+fi
+
+docker compose up -d --no-deps --no-recreate --scale "$service=$(( ${#old[@]} * 2 ))" "$service"
+mapfile -t new < <(docker compose ps -q "$service" | grep -vxF -f <(printf '%s\n' "${old[@]}") || true)
+if (( ${#new[@]} == 0 )); then
+  echo "Новые контейнеры $service не созданы" >&2
+  exit 1
+fi
+
+rollback() {
+  echo "$1" >&2
+  docker logs --tail 50 "${new[0]}" >&2 || true
+  docker rm -f "${new[@]}" > /dev/null || true
+  echo "ROLLOUT: failed — работают прежние контейнеры" >&2
+  exit 1
+}
+
+deadline=$(( SECONDS + timeout ))
+while :; do
+  ready=1
+  for id in "${new[@]}"; do
+    state=$(state_of "$id")
+    case $state in
+      healthy | running) ;;
+      starting | created) ready=0 ;;
+      *) rollback "Контейнер ${id:0:12} ($service): $state" ;;
+    esac
+  done
+  (( ready )) && break
+  (( SECONDS < deadline )) || rollback "Новые контейнеры $service не стали healthy за ${timeout} с"
+  sleep 2
+done
+
+sleep "$drain"
+docker stop -t 30 "${old[@]}" > /dev/null
+docker rm "${old[@]}" > /dev/null
+rename
+echo "ROLLOUT: updated"

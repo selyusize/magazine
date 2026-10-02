@@ -1,0 +1,143 @@
+name: ${COMPOSE_PROJECT_NAME:-magazine}
+
+# Только инфраструктура (для локальной разработки: backend и frontend через `pnpm dev`):
+#   docker compose up -d
+# Весь стек в контейнерах:
+#   docker compose --profile app up -d --build
+
+x-medusa-env: &medusa-env
+  NODE_ENV: production
+  # Postgres во внутренней сети compose без TLS; для managed-БД уберите sslmode=disable
+  DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: ${JWT_SECRET}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+  COOKIE_SECRET: ${COOKIE_SECRET}
+  AUTH_MFA_ENCRYPTION_KEY: ${AUTH_MFA_ENCRYPTION_KEY}
+  STORE_CORS: ${STORE_CORS}
+  ADMIN_CORS: ${ADMIN_CORS}
+  AUTH_CORS: ${AUTH_CORS}
+  # Письма — в Mailpit (http://localhost:8025)
+  SMTP_HOST: mailpit
+  SMTP_PORT: 1025
+  SMTP_SECURE: "false"
+  SMTP_FROM: ${SMTP_FROM:-Магазин <shop@localhost>}
+  SHOP_NAME: ${SHOP_NAME:-Магазин}
+  STOREFRONT_URL: http://localhost:${FRONTEND_PORT:-3000}
+  MEDUSA_ADMIN_URL: http://localhost:${BACKEND_PORT:-9000}
+
+x-backend: &backend
+  profiles: [app]
+  image: ${COMPOSE_PROJECT_NAME:-magazine}-backend
+  build:
+    context: ..
+    dockerfile: devops/backend.Dockerfile
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Ловушка для писем: SMTP :1025, веб-интерфейс http://localhost:8025. Наружу ничего не уходит
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+
+  # Миграции (+ migration-scripts) перед стартом server/worker
+  backend-migrate:
+    <<: *backend
+    restart: "no"
+    command: ["pnpm", "exec", "medusa", "db:migrate"]
+    environment:
+      <<: *medusa-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # HTTP API (store + admin API) и админка на /app
+  backend:
+    <<: *backend
+    environment:
+      <<: *medusa-env
+      MEDUSA_WORKER_MODE: server
+      DISABLE_MEDUSA_ADMIN: "false"
+    ports:
+      - "${BACKEND_PORT:-9000}:9000"
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # Подписчики на события, scheduled jobs, фоновые workflows
+  backend-worker:
+    <<: *backend
+    environment:
+      <<: *medusa-env
+      MEDUSA_WORKER_MODE: worker
+      DISABLE_MEDUSA_ADMIN: "true"
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    profiles: [app]
+    image: ${COMPOSE_PROJECT_NAME:-magazine}-frontend
+    build:
+      context: ..
+      dockerfile: devops/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
+    restart: unless-stopped
+    environment:
+      # Сервер Next ходит в Medusa по внутренней сети compose, браузер — по NEXT_PUBLIC_API_URL
+      API_INTERNAL_URL: http://backend:9000
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - frontend-cache:/app/.next/cache
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  frontend-cache:

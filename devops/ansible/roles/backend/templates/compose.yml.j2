@@ -1,0 +1,87 @@
+# Управляется Ansible (roles/backend). Один образ — три режима Medusa (MEDUSA_WORKER_MODE).
+name: {{ project_name }}-backend
+
+x-backend: &backend
+  image: {{ backend_image }}
+  restart: unless-stopped
+  env_file: backend.env
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  # Миграции + migration-scripts: docker compose run --rm backend-migrate (профиль — чтобы `up` его не запускал)
+  backend-migrate:
+    <<: *backend
+    profiles: [tools]
+    restart: "no"
+    command: ["pnpm", "exec", "medusa", "db:migrate"]
+    networks:
+      - internal
+
+  # Store/Admin API и админка /app. Обновляется скриптом compose-rollout без простоя;
+  # container_name нельзя (при выкате работают два контейнера) — имя {{ backend_host }} ставит скрипт
+  backend:
+    <<: *backend
+    environment:
+      MEDUSA_WORKER_MODE: server
+      DISABLE_MEDUSA_ADMIN: "false"
+    volumes:
+      - uploads:/app/static
+    networks:
+      internal: {}
+      proxy:
+        aliases:
+          - {{ backend_host }}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: {{ docker_proxy_network }}
+      traefik.http.services.{{ project_name }}-backend.loadbalancer.server.port: "9000"
+      # Роутеры: чем длиннее правило, тем выше приоритет
+      traefik.http.routers.{{ project_name }}-backend.rule: Host(`{{ backend_domain }}`)
+      traefik.http.routers.{{ project_name }}-backend.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-backend.middlewares: api-csp@file
+      # Админка и Admin API — только из admin_allowlist
+      traefik.http.routers.{{ project_name }}-backend-admin.rule: >-
+        Host(`{{ backend_domain }}`) && (PathPrefix(`/app`) || PathPrefix(`/admin`))
+      traefik.http.routers.{{ project_name }}-backend-admin.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-backend-admin.middlewares: admin-allowlist@file,admin-csp@file
+      # Вход покупателей напрямую в API — с лимитом попыток
+      traefik.http.routers.{{ project_name }}-backend-auth.rule: Host(`{{ backend_domain }}`) && PathPrefix(`/auth`)
+      traefik.http.routers.{{ project_name }}-backend-auth.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-backend-auth.middlewares: auth-rate-limit@file,api-csp@file
+      # Вход в админку — allowlist и лимит попыток
+      traefik.http.routers.{{ project_name }}-backend-auth-admin.rule: Host(`{{ backend_domain }}`) && PathPrefix(`/auth/user`)
+      traefik.http.routers.{{ project_name }}-backend-auth-admin.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-backend-auth-admin.middlewares: admin-allowlist@file,auth-rate-limit@file,api-csp@file
+
+  # Подписчики, scheduled jobs, фоновые workflows; в proxy — ради выхода в интернет (платёжки, доставка)
+  backend-worker:
+    <<: *backend
+    container_name: {{ project_name }}-backend-worker
+    environment:
+      MEDUSA_WORKER_MODE: worker
+      DISABLE_MEDUSA_ADMIN: "true"
+    volumes:
+      - uploads:/app/static
+    networks:
+      - internal
+      - proxy
+
+volumes:
+  # Загрузки Medusa (картинки товаров): переживают редеплой, общие для server и worker
+  uploads:
+    name: {{ project_name }}-backend-uploads
+
+networks:
+  internal:
+    name: {{ docker_internal_network }}
+    external: true
+  proxy:
+    name: {{ docker_proxy_network }}
+    external: true

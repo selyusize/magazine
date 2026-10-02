@@ -1,0 +1,22 @@
+- name: Создать пользователя деплоя
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    shell: /bin/bash
+    groups: [sudo]
+    append: true
+    create_home: true
+
+- name: Разрешённые SSH-ключи пользователя деплоя
+  ansible.posix.authorized_key:
+    user: "{{ deploy_user }}"
+    key: "{{ deploy_authorized_keys | join('\n') }}"
+    exclusive: true
+
+- name: Sudo без пароля для пользователя деплоя
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: /etc/sudoers.d/90-{{ deploy_user }}
+    owner: root
+    group: root
+    mode: "0440"
+    validate: visudo -cf %s

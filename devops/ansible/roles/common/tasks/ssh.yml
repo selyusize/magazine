@@ -1,0 +1,17 @@
+# Каталог нужен для `sshd -t` при socket-активации ssh (Ubuntu 22.10+)
+- name: Каталог privilege separation для sshd
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Вход по SSH только по ключу
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Перезапустить sshd

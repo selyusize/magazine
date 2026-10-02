@@ -1,0 +1,9 @@
+# Управляется Ansible (roles/common). Файл читается раньше 50-cloud-init.conf — его значения в приоритете.
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin {{ common_ssh_permit_root_login }}
+MaxAuthTries 3
+X11Forwarding no
+ClientAliveInterval 300
+ClientAliveCountMax 2

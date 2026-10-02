@@ -1,0 +1,24 @@
+- name: Каталог бэкапов postgres
+  ansible.builtin.file:
+    path: "{{ backup_dir }}/postgres"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Скрипт бэкапа postgres
+  ansible.builtin.template:
+    src: backup-postgres.j2
+    dest: "{{ project_dir }}/bin/backup-postgres"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Расписание бэкапа postgres
+  ansible.builtin.cron:
+    name: backup postgres
+    cron_file: "{{ project_name }}-backup-postgres"
+    user: root
+    hour: "{{ postgres_backup_hour }}"
+    minute: "{{ postgres_backup_minute }}"
+    job: "{{ project_dir }}/bin/backup-postgres 2>&1 | logger -t {{ project_name }}-backup-postgres"

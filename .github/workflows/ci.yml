@@ -1,0 +1,78 @@
+# Проверки: на pull request и перед каждым деплоем (вызывается из deploy.yml)
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+          cache: true
+          cache_dependency_path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Генерация API (Orval)
+        run: pnpm api:generate
+      - run: pnpm lint
+      - name: FSD (steiger)
+        run: pnpm lint:fsd
+      - name: Типы
+        run: pnpm exec tsc --noEmit
+      - name: Unit-тесты
+        run: pnpm test:unit
+      - name: Сборка
+        run: pnpm exec next build
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: backend/package.json
+          cache: true
+          cache_dependency_path: backend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - name: Сборка (medusa build)
+        run: pnpm build
+
+  ansible:
+    name: Ansible
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: devops/ansible
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install "ansible-core~=2.21.0" ansible-lint
+      - run: ansible-galaxy collection install -r requirements.yml
+      - run: ansible-lint

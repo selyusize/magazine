@@ -1,0 +1,44 @@
+- name: Проверить SSH-ключи пользователя деплоя
+  ansible.builtin.assert:
+    that: deploy_authorized_keys | length > 0
+    fail_msg: >-
+      Задайте deploy_authorized_keys в inventories/<окружение>/group_vars/all/main.yml —
+      после отключения входа по паролю без ключа на сервер не попасть.
+    quiet: true
+
+- name: Установить базовые пакеты
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Установить часовой пояс
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Создать swap
+  ansible.builtin.include_tasks: swap.yml
+  when: common_swap_size_mb | int > 0 and ansible_facts['swaptotal_mb'] | int == 0
+
+- name: Настроить параметры ядра
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-{{ project_name }}.conf
+    reload: true
+  loop: "{{ common_sysctl | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Пользователь деплоя
+  ansible.builtin.import_tasks: users.yml
+
+- name: SSH
+  ansible.builtin.import_tasks: ssh.yml
+
+- name: Firewall и fail2ban
+  ansible.builtin.import_tasks: firewall.yml
+
+- name: Автообновления безопасности и журнал
+  ansible.builtin.import_tasks: maintenance.yml

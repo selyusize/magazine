@@ -1,0 +1,43 @@
+- name: Проверить секреты postgres
+  ansible.builtin.assert:
+    that: vault_postgres_password is defined
+    fail_msg: Нет vault_postgres_password — создайте секреты (make infra-vault)
+    quiet: true
+
+- name: Каталог postgres
+  ansible.builtin.file:
+    path: "{{ postgres_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Compose postgres
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ postgres_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Переменные окружения postgres
+  ansible.builtin.template:
+    src: postgres.env.j2
+    dest: "{{ postgres_dir }}/postgres.env"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+
+- name: Запустить postgres
+  community.docker.docker_compose_v2:
+    project_src: "{{ postgres_dir }}"
+    state: present
+    pull: missing
+    remove_orphans: true
+    wait: true
+    wait_timeout: 120
+
+- name: Ежедневный бэкап postgres
+  ansible.builtin.include_tasks: backup.yml
+  when: postgres_backup_enabled

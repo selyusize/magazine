@@ -1,0 +1,6 @@
+# Деплой приложений: сначала backend (миграции), затем витрина
+- name: Backend
+  ansible.builtin.import_playbook: backend.yml
+
+- name: Frontend
+  ansible.builtin.import_playbook: frontend.yml
