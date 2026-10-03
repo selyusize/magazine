@@ -33,7 +33,7 @@ pnpm test:unit | test:integration:http | test:integration:modules
 - `medusa-config.ts`: при заданном `REDIS_URL` события, workflows и блокировки идут через Redis
   (обязательно, когда server и worker в разных контейнерах).
   `MEDUSA_WORKER_MODE` — `shared` (dev), `server` (HTTP API + админка), `worker` (подписчики, jobs).
-- Почта: сервис `SMTP` (`src/shared/smtp/service/smtp.ts`, nodemailer), настройки из `SMTP_*` читает
+- Почта: сервис `SMTP` (`src/shared/service/smtp/smtp.ts`, nodemailer), настройки из `SMTP_*` читает
   `src/container/common/smtp.ts`. Отправка — `Container.from(container).get(SMTP).send({ to, subject, html })` или
   параметр конструктора `smtp: SMTP`. Без `SMTP_HOST` письма только пишутся в лог.
   Локально `SMTP_HOST=localhost:1025` — Mailpit, http://localhost:8025.

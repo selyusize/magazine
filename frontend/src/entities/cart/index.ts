@@ -10,12 +10,15 @@ export {
 } from "./api/cart.actions";
 // Хуки TanStack Query для клиентских компонентов
 export {
+  cartItemCount,
   cartKeys,
   cartQueryOptions,
   useAddLineItem,
   useCart,
+  useCartCount,
   useRemoveLineItem,
   useUpdateCart,
   useUpdateLineItem,
 } from "./model/cart.queries";
+export { useCartSheet } from "./model/cart-sheet.store";
 export { CART_FIELDS } from "./config/fields";

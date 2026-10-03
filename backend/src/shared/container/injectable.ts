@@ -21,7 +21,9 @@ export function Injectable(): ClassDecorator {
 /** Параметр конструктора получает контейнер Medusa (`MedusaContainer` — интерфейс, по типу его не найти). */
 export function InjectContainer(): ParameterDecorator {
   return (target, _propertyKey, index) => {
-    const tokens: Record<number, ParamToken> = { ...Reflect.getMetadata(PARAM_TOKENS, target) };
+    const tokens: Record<number, ParamToken> = {
+      ...Reflect.getMetadata(PARAM_TOKENS, target),
+    };
     tokens[index] = MEDUSA_CONTAINER;
     Reflect.defineMetadata(PARAM_TOKENS, tokens, target);
   };
@@ -29,7 +31,9 @@ export function InjectContainer(): ParameterDecorator {
 
 /** Что передать в каждый параметр конструктора: явный токен или тип из метаданных TypeScript. */
 export function getParamTokens(target: ClassToken<unknown>): unknown[] {
-  const types: unknown[] = Reflect.getMetadata("design:paramtypes", target) ?? [];
-  const tokens: Record<number, ParamToken> = Reflect.getMetadata(PARAM_TOKENS, target) ?? {};
+  const types: unknown[] =
+    Reflect.getMetadata("design:paramtypes", target) ?? [];
+  const tokens: Record<number, ParamToken> =
+    Reflect.getMetadata(PARAM_TOKENS, target) ?? {};
   return types.map((type, index) => tokens[index] ?? type);
 }

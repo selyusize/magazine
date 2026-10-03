@@ -25,6 +25,15 @@
     group: root
     mode: "0640"
 
+- name: Конфиг nginx для /static
+  ansible.builtin.copy:
+    src: static-nginx.conf
+    dest: "{{ backend_dir }}/static-nginx.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  register: backend_static_conf
+
 - name: Переменные окружения backend
   ansible.builtin.template:
     src: backend.env.j2
@@ -65,6 +74,16 @@
     dependencies: false
     state: present
     pull: never
+
+# Конфиг смонтирован файлом — после его изменения контейнер пересоздаём, чтобы nginx перечитал его
+- name: Обновить nginx для /static
+  community.docker.docker_compose_v2:
+    project_src: "{{ backend_dir }}"
+    services: [backend-static]
+    dependencies: false
+    state: present
+    pull: missing
+    recreate: "{{ 'always' if backend_static_conf is changed else 'auto' }}"
 
 - name: Publishable key
   ansible.builtin.include_tasks: publishable_key.yml

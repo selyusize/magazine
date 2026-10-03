@@ -23,5 +23,10 @@ build
 !.yarn/sdks
 !.yarn/versions
 
-.medusa# Загрузки file-local (локально и с прода: make pull-files)
+.medusa
+# Загрузки file-local (локально и с прода: make pull-files)
 /static
+# Файловые логи (Logger.toFile)
+/logs
+# Пакеты обмена с поставщиками (CommerceML) — непубличные, наружу не отдаются
+/exchange

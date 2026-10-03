@@ -7,7 +7,7 @@ import { AppShell } from "@shared/ui/app-shell";
  */
 export function CheckoutLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell layout="checkout" header={<Header topBar={null} navigation={null} search={null} actions={null} />}>
+    <AppShell layout="checkout" header={<Header topBar={null} menu={null} navigation={null} search={null} actions={null} />}>
       {children}
     </AppShell>
   );

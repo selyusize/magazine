@@ -16,3 +16,6 @@ backend_auth_cors: "{{ backend_store_cors }},{{ backend_admin_cors }}"
 
 # Дополнительные несекретные переменные окружения; секретные — в vault: vault_backend_env
 backend_env: {}
+
+# nginx перед backend: отдаёт /static (загрузки) с диска с долгим кэшем
+backend_static_image: nginxinc/nginx-unprivileged:1.29-alpine

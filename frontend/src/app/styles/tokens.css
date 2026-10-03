@@ -1,0 +1,157 @@
+/*
+ * Токены бренда — единственный файл стилей, который меняется под новый магазин (плюс шрифт в fonts.ts).
+ *
+ * Два уровня:
+ * 1. Палитра (--palette-*) — сырые значения из макета. Компоненты их напрямую не используют.
+ * 2. Семантика (--background, --primary, --promo…) — роль цвета. Компоненты берут только её:
+ *    bg-background, text-muted-foreground, border-border, bg-promo…
+ * Новый бренд = новая палитра + при необходимости другое сопоставление ролей.
+ *
+ * Источник: Figma «Fashion E-commerce» → Color Palette, Typography.
+ */
+
+:root {
+  /* — Палитра — */
+  --palette-neutral-100: #ffffff;
+  --palette-neutral-200: #f8f9fa;
+  --palette-neutral-300: #d3d4d5;
+  --palette-neutral-400: #979797;
+  --palette-neutral-500: #6a6a6a;
+  --palette-neutral-600: #565656;
+  --palette-neutral-700: #000000;
+  --palette-smoke-100: #f5f4f4;
+  --palette-smoke-200: #dddddd;
+  --palette-red-500: #d92d20;
+
+  /* — Семантика (имена shadcn: на них завязаны компоненты из shared/ui) — */
+  --background: var(--palette-neutral-100);
+  --foreground: var(--palette-neutral-700);
+  --card: var(--palette-neutral-100);
+  --card-foreground: var(--palette-neutral-700);
+  --popover: var(--palette-neutral-100);
+  --popover-foreground: var(--palette-neutral-700);
+  --primary: var(--palette-neutral-700);
+  --primary-foreground: var(--palette-neutral-100);
+  /* Светлая кнопка (Figma: Button, Neutral/200) */
+  --secondary: var(--palette-neutral-200);
+  --secondary-foreground: var(--palette-neutral-700);
+  --muted: var(--palette-neutral-200);
+  --muted-foreground: var(--palette-neutral-500);
+  --accent: var(--palette-smoke-100);
+  --accent-foreground: var(--palette-neutral-700);
+  --destructive: var(--palette-red-500);
+  --border: var(--palette-smoke-200);
+  --input: var(--palette-smoke-200);
+  --ring: var(--palette-neutral-400);
+
+  /* Промо-полоса над хедером (акции, доставка) */
+  --promo: var(--palette-neutral-700);
+  --promo-foreground: var(--palette-neutral-100);
+
+  /* Фон выделенной секции страницы (текстовые блоки, подписка) */
+  --surface: var(--palette-smoke-100);
+  --surface-foreground: var(--palette-neutral-700);
+  /* Второстепенный текст на surface (подписи колонок футера, копирайт) — темнее muted ради контраста */
+  --surface-muted-foreground: var(--palette-neutral-600);
+
+  --chart-1: var(--palette-neutral-300);
+  --chart-2: var(--palette-neutral-400);
+  --chart-3: var(--palette-neutral-500);
+  --chart-4: var(--palette-neutral-600);
+  --chart-5: var(--palette-neutral-700);
+
+  --sidebar: var(--palette-neutral-200);
+  --sidebar-foreground: var(--palette-neutral-700);
+  --sidebar-primary: var(--palette-neutral-700);
+  --sidebar-primary-foreground: var(--palette-neutral-100);
+  --sidebar-accent: var(--palette-smoke-100);
+  --sidebar-accent-foreground: var(--palette-neutral-700);
+  --sidebar-border: var(--palette-smoke-200);
+  --sidebar-ring: var(--palette-neutral-400);
+
+  /* Скругления: макет без скруглений. Все radius-* в @theme считаются от этого значения */
+  --radius: 0rem;
+
+  /* Начертание заголовков: в макете всё Regular */
+  --heading-weight: 400;
+
+  /* Боковой отступ контента: 16px на мобильных, 32px с md (макет) */
+  --container-gutter: 1rem;
+}
+
+@media (width >= 48rem) {
+  :root {
+    --container-gutter: 2rem;
+  }
+}
+
+/* Тёмная тема: в макете её нет — та же палитра, роли инвертированы */
+.dark {
+  --background: var(--palette-neutral-700);
+  --foreground: var(--palette-neutral-100);
+  --card: var(--palette-neutral-700);
+  --card-foreground: var(--palette-neutral-100);
+  --popover: var(--palette-neutral-700);
+  --popover-foreground: var(--palette-neutral-100);
+  --primary: var(--palette-neutral-100);
+  --primary-foreground: var(--palette-neutral-700);
+  --secondary: var(--palette-neutral-600);
+  --secondary-foreground: var(--palette-neutral-100);
+  --muted: var(--palette-neutral-600);
+  --muted-foreground: var(--palette-neutral-300);
+  --accent: var(--palette-neutral-600);
+  --accent-foreground: var(--palette-neutral-100);
+  --border: oklch(1 0 0 / 15%);
+  --input: oklch(1 0 0 / 20%);
+  --ring: var(--palette-neutral-500);
+
+  --promo: var(--palette-neutral-100);
+  --promo-foreground: var(--palette-neutral-700);
+
+  --surface: var(--palette-neutral-600);
+  --surface-foreground: var(--palette-neutral-100);
+  --surface-muted-foreground: var(--palette-neutral-300);
+
+  --sidebar: var(--palette-neutral-700);
+  --sidebar-foreground: var(--palette-neutral-100);
+  --sidebar-primary: var(--palette-neutral-100);
+  --sidebar-primary-foreground: var(--palette-neutral-700);
+  --sidebar-accent: var(--palette-neutral-600);
+  --sidebar-accent-foreground: var(--palette-neutral-100);
+  --sidebar-border: oklch(1 0 0 / 15%);
+  --sidebar-ring: var(--palette-neutral-500);
+}
+
+/*
+ * Типошкала макета: Text 100…900 → утилиты text-100…text-900 (размер + межстрочный).
+ * Имена шкалы, а не xs/sm/lg: у другого бренда шкала может быть длиннее или короче.
+ * Стандартные text-xs…text-9xl Tailwind остаются — ими пользуются компоненты shadcn.
+ */
+@theme {
+  --text-100: 0.6875rem; /* 11px */
+  --text-100--line-height: 1.25rem;
+  --text-200: 0.75rem; /* 12px */
+  --text-200--line-height: 1.25rem;
+  --text-300: 0.8125rem; /* 13px — основной текст интерфейса */
+  --text-300--line-height: 1.25rem;
+  --text-400: 0.9375rem; /* 15px */
+  --text-400--line-height: 1.25rem;
+  --text-500: 1rem; /* 16px */
+  --text-500--line-height: 1.375rem;
+  --text-600: 1.125rem; /* 18px */
+  --text-600--line-height: 1.5rem;
+  --text-700: 1.25rem; /* 20px */
+  --text-700--line-height: 1.625rem;
+  --text-800: 1.375rem; /* 22px */
+  --text-800--line-height: 1.75rem;
+  --text-900: 1.5rem; /* 24px */
+  --text-900--line-height: 2rem;
+
+  /* Начертание кнопок (font-button): в макете Regular */
+  --font-weight-button: 400;
+
+  /* Ширины <Container size>: max-w-narrow, max-w-default, max-w-wide */
+  --container-narrow: 45rem; /* 720px — текстовые блоки */
+  --container-default: 87.5rem; /* 1400px — ширина макета */
+  --container-wide: 120rem; /* 1920px */
+}

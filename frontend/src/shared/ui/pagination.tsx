@@ -1,5 +1,6 @@
 import * as React from "react"
-import { cn } from "cn"
+import Link from "next/link"
+import { cn } from "@shared/lib/utils"
 
 import { Button } from "@shared/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
@@ -36,8 +37,9 @@ function PaginationItem({ ...props }: React.ComponentProps<"li">) {
 type PaginationLinkProps = {
   isActive?: boolean
 } & Pick<React.ComponentProps<typeof Button>, "size"> &
-  React.ComponentProps<"a">
+  React.ComponentProps<typeof Link>
 
+/** next/link — переход без перезагрузки страницы, в HTML остаётся обычная ссылка */
 function PaginationLink({
   className,
   isActive,
@@ -51,7 +53,7 @@ function PaginationLink({
       size={size}
       className={cn(className)}
     >
-      <a
+      <Link
         aria-current={isActive ? "page" : undefined}
         data-slot="pagination-link"
         data-active={isActive}

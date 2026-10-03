@@ -1,0 +1,112 @@
+/*
+ * Базовые стили HTML-тегов поверх preflight Tailwind. Только через токены — без значений бренда,
+ * поэтому файл переезжает в другой магазин без изменений.
+ */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-300 text-foreground;
+  }
+
+  /* Заголовки: размеры из типошкалы. Уровень выбирается по смыслу (SEO), а не по размеру —
+     нужен другой размер, переопределите классом: <h2 className="text-500"> */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading text-balance;
+    font-weight: var(--heading-weight);
+  }
+  h1 {
+    @apply text-900;
+  }
+  h2 {
+    @apply text-800;
+  }
+  h3 {
+    @apply text-700;
+  }
+  h4 {
+    @apply text-600;
+  }
+  h5 {
+    @apply text-500;
+  }
+  h6 {
+    @apply text-400;
+  }
+
+  p {
+    @apply text-pretty;
+  }
+
+  a {
+    @apply underline-offset-4;
+  }
+
+  /* Списки без маркеров (preflight) — для навигации. В тексте статей маркеры вернёт обёртка контента */
+
+  strong,
+  b {
+    @apply font-medium;
+  }
+
+  small {
+    @apply text-200;
+  }
+
+  hr {
+    @apply border-t border-border;
+  }
+
+  /* В Tailwind 4 у кнопок курсор по умолчанию — возвращаем привычный */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-muted-foreground;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+
+  ::selection {
+    @apply bg-foreground text-background;
+  }
+
+  /* Якоря не прячутся под липким хедером */
+  :target {
+    scroll-margin-top: 6rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

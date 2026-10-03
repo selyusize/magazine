@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "db:migrate": "medusa db:migrate",
     "seed": "medusa exec ./src/scripts/seed-demo-products.ts",
+    "images:resize": "medusa exec ./src/scripts/resize-images.ts",
     "user:create": "medusa user",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
@@ -24,6 +25,8 @@
     "@medusajs/dashboard": "2.21.2",
     "@medusajs/draft-order": "2.21.2",
     "@medusajs/framework": "2.21.2",
+    "@medusajs/icons": "2.21.2",
+    "@medusajs/js-sdk": "2.21.2",
     "@medusajs/medusa": "2.21.2",
     "@medusajs/ui": "4.2.6",
     "@tanstack/react-query": "5.64.2",
@@ -31,6 +34,7 @@
     "react-i18next": "13.5.0",
     "react-router-dom": "7.18.2",
     "reflect-metadata": "0.2.2",
+    "sharp": "^0.35.5",
     "zod": "4.2.0"
   },
   "devDependencies": {

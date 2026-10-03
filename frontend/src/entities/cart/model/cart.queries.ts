@@ -18,6 +18,16 @@ export function useCart() {
   return useQuery(cartQueryOptions());
 }
 
+/** Сколько штук в корзине: сумма quantity позиций. Корзины нет — 0 */
+export function cartItemCount(cart: StoreCart | null): number {
+  return cart?.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+}
+
+/** Число для иконки корзины. undefined — корзина ещё не загружена (на сервере и до ответа) */
+export function useCartCount(): number | undefined {
+  return useQuery({ ...cartQueryOptions(), select: cartItemCount }).data;
+}
+
 /** Все мутации корзины возвращают корзину целиком — кладём её в кеш без повторного запроса. */
 function useCartMutation<TInput>(action: (input: TInput) => Promise<ActionResult<StoreCart>>) {
   const queryClient = useQueryClient();

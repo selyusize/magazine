@@ -24,6 +24,14 @@ import type { IEventBusModuleService } from '@medusajs/framework/types'
 import type { IWorkflowEngineService } from '@medusajs/framework/types'
 import type { ILockingModule } from '@medusajs/framework/types'
 import type { IFileModuleService } from '@medusajs/framework/types'
+import type { ICachingModuleService } from '@medusajs/framework/types'
+import type Redirect from '../../src/modules/redirect'
+import type Brand from '../../src/modules/brand'
+import type Content from '../../src/modules/content'
+import type FilterPage from '../../src/modules/filter-page'
+import type Supplier from '../../src/modules/supplier'
+import type Catalog from '../../src/modules/catalog'
+import type Attribute from '../../src/modules/attribute'
 
 declare module '@medusajs/framework/types' {
   interface ModuleImplementations {
@@ -52,6 +60,14 @@ declare module '@medusajs/framework/types' {
     'event_bus': IEventBusModuleService,
     'workflows': IWorkflowEngineService,
     'locking': ILockingModule,
-    'file': IFileModuleService
+    'file': IFileModuleService,
+    'caching': ICachingModuleService,
+    'redirect': InstanceType<(typeof Redirect)['service']>,
+    'brand': InstanceType<(typeof Brand)['service']>,
+    'content': InstanceType<(typeof Content)['service']>,
+    'filter_page': InstanceType<(typeof FilterPage)['service']>,
+    'supplier': InstanceType<(typeof Supplier)['service']>,
+    'catalog': InstanceType<(typeof Catalog)['service']>,
+    'attribute': InstanceType<(typeof Attribute)['service']>
   }
 }

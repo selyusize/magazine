@@ -114,7 +114,7 @@ src/
       review.ts                            # define(...) для классов модуля review
 ```
 
-Рабочий пример инфраструктурного сервиса — `src/shared/smtp/service/smtp.ts` и его определение
+Рабочий пример инфраструктурного сервиса — `src/shared/service/smtp/smtp.ts` и его определение
 `src/container/common/smtp.ts` (п.4, «Инфраструктурные сервисы»).
 
 - **`entity/` и `models/`.** Сущности пишем в `entity/`. Medusa ищет модели только в папке `models/`, поэтому на
@@ -126,6 +126,38 @@ src/
   `command/`, `query/`, `action/` и `service/` — без `index.ts`, `entity/` и регистрации в `medusa-config.ts`.
 - Модуль с таблицами регистрируется в `medusa-config.ts` в `modules: [...]`.
 - HTTP‑маршруты в модуль **не кладём** — они в `src/api/store/...` и `src/api/admin/...` (п.9).
+
+### Типовой CRUD — фабрика `src/shared/crud`
+
+Справочники с админкой (бренды, статьи, посадочные) не пишутся use‑case за use‑case'ом: одно описание —
+`defineCRUD({...})` в `src/modules/{module}/crud/index.ts` — даёт те же слои, что и рукописный код:
+
+- **Handler** create / update / delete → workflow `create-{entity}` / `update-{entity}` / `delete-{entity}`: шаги с
+  откатом, событие `{entity}.created|updated|deleted`, ответ — свежая строка из Query (с полями связей).
+- **Fetcher** списка (поиск `q`, фильтры, пагинация) и карточки (`NOT_FOUND`) — через Query.
+- **Action** на каждый роут и `middlewares(path)` с zod‑схемами из `crud/schema.ts`.
+- **Handle** (`handle: { from, scope }`): slug из названия под блокировкой; явный handle — slug из него, занят →
+  400; переименование адрес не меняет; уникальность — в пределах `scope` (посадочная — внутри категории).
+  Пути, 301 и 410 — модуль redirect по событиям (`URL_ENTITIES` в `redirect/service/path.ts`, подписчики
+  `redirect-{entity}-url.ts` / `-deleted.ts`).
+
+```text
+src/modules/brand/
+  index.ts, entity/, models/, service/, migrations/   # как обычно (п.8)
+  crud/
+    index.ts      # export const brandCRUD = defineCRUD<BrandDTO>({ entity, module, model, fields, handle, ... })
+    schema.ts     # CreateBrandSchema, UpdateBrandSchema
+    dto.ts        # BrandDTO
+src/api/admin/brands/route.ts        # GET/POST → Container.from(req.scope).get(brandCRUD.actions.list|create)
+src/api/admin/brands/[id]/route.ts   # GET/POST/DELETE → actions.get|update|delete
+src/api/admin/brands/middleware.ts   # brandCRUD.middlewares("/admin/brands")
+src/admin/brands/resource.ts         # колонки и поля формы; страница — <CRUDPage resource={...} /> (п.14)
+```
+
+Всё, что сверх CRUD (каскад, импорт, доп. проверки), — обычный use‑case рядом (`command/{use-case}/`), он может
+запускать workflow фабрики через `brandCRUD.workflows.delete.runAsStep(...)` (пример —
+`filter-page/command/delete-filter-pages-by-category-id`). Удаление в фабрике мягкое (`softDelete`): уникальные
+индексы — частичные (`WHERE deleted_at IS NULL`), handle удалённой записи снова свободен.
 
 ---
 
@@ -152,6 +184,12 @@ src/shared/
   smtp/
     service/
       smtp.ts                   # SMTP.send(message) — инфраструктурный сервис
+  logger/
+    service/
+      logger.ts                 # Logger поверх логгера Medusa; toFile(name) → logs/{name}.log
+  image/
+    service/
+      image-resizer.ts          # ImageResizer: копии картинок для srcset (sharp), photo.jpg → photo.w640.webp
 ```
 
 ### Контракты данных: DTO, Command, Query
@@ -306,6 +344,8 @@ Action базового класса не имеет: ему нечего нас
   бросит ошибку «параметр #N не класс».
 - **`define`** — только когда в конструкторе есть то, что не выводится из типа: значение из конфига или env,
   выбор реализации абстрактного класса. Фабрика получает `get(Class)` для других зависимостей и `container` Medusa.
+- **`.env` грузит `src/container/env.ts`** — он импортируется в `medusa-config.ts` первым: конфиги из
+  `src/container/common/*.ts` читают env при импорте, а `medusa-config.ts` берёт из них настройки провайдеров.
 - **Конфиг и env** читаются только в `src/container/common/*.ts`. Классы получают готовые значения через конструктор
   и сами в `process.env` не ходят. Настройки модулей и провайдеров Medusa — в `medusa-config.ts`.
 - **Время жизни.** `Container.from(container)` открывает область: внутри неё каждый класс создаётся один раз,
@@ -344,7 +384,7 @@ export const Container = createContainer(dependencies);
 ### Инфраструктурные сервисы (`src/shared/{service}/service/`)
 
 Технические сервисы без своего домена — почта, HTTP‑клиенты ЮKassa и СДЭК, хранилища — живут в `shared`, а не
-в `modules`: у них нет сущностей, команд и запросов. Пример — `src/shared/smtp/service/smtp.ts`.
+в `modules`: у них нет сущностей, команд и запросов. Пример — `src/shared/service/smtp/smtp.ts`.
 
 - Класс получает настройки и логгер через конструктор, сам в `process.env` не ходит.
 - Описывается в контейнере через `define` в `src/container/common/{service}.ts` — там же читается env.
@@ -384,9 +424,14 @@ Handler без workflow (как выше) допустим, когда отка�
   только ссылка на workflow. Своих методов нет.
 - **`workflow.ts`** — сценарий из шагов:
   - функция композиции синхронная и декларативная: внутри нет `async/await`, `if`, циклов и операций над результатами
-    шагов. Преобразования — `transform(...)`, условия — `when(...)`;
+    шагов. Преобразования — `transform(...)`, условия — `when(...)`. `when` внутри `when().then()` Medusa не
+    поддерживает: ветка возвращает результат, следующее условие — отдельным `when` по нему;
   - сначала переиспользуем готовые шаги и workflows Medusa (`@medusajs/medusa/core-flows`);
   - связи между модулями создаём здесь (`createRemoteLinkStep`), события публикуем здесь (`emitEventStep`).
+- Шаг, который нужен нескольким командам модуля, лежит в `src/modules/{module}/step/` (пример —
+  `redirect/step/save-redirects.ts`), остальные — в `command/{use-case}/step/`.
+- Параллельные запуски, которые спорят за одно и то же (уникальный handle, остаток), — под блокировкой Medusa:
+  `acquireLockStep({ key, timeout, ttl })` в начале workflow и `releaseLockStep({ key })` в конце.
 - **`step/{action}.ts`** — один шаг = одно действие: резолвит сервис модуля из `container` и вызывает его метод.
   - Возвращает `new StepResponse(dto, compensationInput)` — последний шаг собирает DTO из `../dto.ts`.
   - Шаг, который что‑то создаёт или меняет, **обязан иметь откат** (третий аргумент `createStep`).
@@ -457,6 +502,12 @@ export class CreateReviewForProductHandler extends AbstractCommandHandler<Create
     и сущности Medusa, и связи между ними.
   - `fields` — явный список, только то, что нужно потребителю. `*` не используем.
   - Цены — через `QueryContext({ currency_code, region_id })`, не вручную.
+  - Данные внешних API (ПВЗ, справочники перевозчиков) — через `this.cached(key, ttl, load)` базового класса:
+    Redis, если подключён модуль кэша, иначе прямой вызов.
+  - Кэш — вторым аргументом: `this.graph({...}, { cache: { enable: true } })`. Включаем для данных витрины, которые
+    читают часто, а меняют редко (каталог, категории, реквизиты). Хранилище — модуль Caching Medusa в Redis
+    (`medusa-config.ts`), инвалидация — автоматически по событиям сущностей. Свой кэш (`Map` в памяти, ручные ключи
+    в Redis) не заводим: server и worker — разные процессы. Без Redis (тесты) кэш выключен, код работает так же.
   - Возвращает DTO / массив DTO / `null` из своего `dto.ts`. Маппинг строки в DTO — функцией `toXxxDTO(row)`
     в том же `fetcher.ts`.
 - **Нейминг по контракту**:
@@ -565,6 +616,10 @@ export class CreateReviewForProductAction implements Action<AuthenticatedMedusaR
   в сущности храним максимум внешний id для фильтрации (`product_id`).
 - В сущности нет логики, хуков и валидации.
 - Любое изменение сущности → `pnpm medusa db:generate {module}` → `pnpm db:migrate`. Миграции коммитим.
+- **До релиза БД можно пересоздавать.** Магазин ещё не в проде, данных, которые жалко потерять, нет. Поэтому
+  миграции и сид (`src/migration-scripts/`) правим на месте, а не наслаиваем исправляющие миграции, и, если нужно,
+  удаляем локальную базу и поднимаем заново (`pnpm db:migrate` прогонит миграции и сид с нуля). После первого
+  релиза правило отменяется: только новые миграции, существующие не трогаем.
 
 ```ts
 // entity/review.ts
@@ -675,13 +730,25 @@ export const config: SubscriberConfig = { event: "order.placed" };
 
 - **Job** — `src/jobs/{module}-{what-it-does}.ts` + `export const config = { name, schedule }`. Тоже только вызывает
   Handler / Fetcher, работает в worker, идемпотентен.
-- **Связи модулей** — `src/links/{module-a}-{module-b}.ts` через `defineLink`.
+- **Связи модулей** — `src/links/{module-a}-{module-b}.ts` через `defineLink`. Сущность другого модуля, которую
+  только читаем по своему полю (`variant_id`, `category_id`), — read-only связью (`{ readOnly: true }`), без своей
+  таблицы. Read-only связь «один ко многим» — `{ readOnly: true, isList: true }` в опциях: `isList` у второй стороны
+  такая связь не читает, и Query отдаст одну запись вместо списка (`product_variant.supplier_offers`).
 - **Свои события** — из workflow шагом `emitEventStep`, имя `{entity}.{past-tense}` (`review.created`).
 - **Интеграции** (почта, ЮKassa/СБП, СДЭК):
   - свой клиент внешней системы — инфраструктурный сервис в `src/shared/{service}/service/` (п.4, пример — SMTP);
   - если интеграция должна встроиться в процессы Medusa (оплата в checkout, тарифы доставки) — провайдер встроенного
     модуля Medusa (`AbstractPaymentProvider`, `AbstractFulfillmentProviderService`) в `src/modules/{provider}/`,
-    настройки — через `options` в `medusa-config.ts`.
+    настройки — через `options` в `medusa-config.ts`. Пример — доставка: `src/modules/fulfillment-cdek`,
+    `fulfillment-yandex-delivery` (общая часть — `src/shared/service/delivery/carrier-fulfillment.ts`):
+    - провайдер сам env не читает: конфиг и флаг «подключён» (`deliveryProviders`) — в `src/container/common/delivery.ts`,
+      `medusa-config.ts` регистрирует провайдер только с ключами, `static validateOptions` проверяет их при старте;
+    - провайдер живёт всё время процесса, поэтому созданный им клиент API может держать токен и справочники в экземпляре;
+      тот же клиент для Store API (`define` в контейнере) создаётся на запрос — его ответы кэшируем через `cached`;
+    - ошибки, которые покупатель может исправить («укажите город», «выберите пункт выдачи»), — `INVALID_DATA` (400),
+      недоступность перевозчика — `UNEXPECTED_STATE`;
+    - тесты: клиент — unit с подменой `fetch`, провайдер — unit с подменой методов клиента, сквозной сценарий корзины —
+      `integration-tests/http` с ключами-пустышками из `integration-tests/setup.js` (в сеть тесты не ходят).
 
 ---
 
@@ -701,6 +768,30 @@ export const config: SubscriberConfig = { event: "order.placed" };
 - **Логирование** — только логгер Medusa (`container.resolve(ContainerRegistrationKeys.LOGGER)` или `logger` из
   конструктора модуля), без `console.*`. Сообщение начинается с префикса `{module}/{use-case}:` —
   `review/create-review-for-product: ...`.
+- **Время** — московское: `TZ=Europe/Moscow` в образе (`devops/backend.Dockerfile`) и в `.env`. Расписания jobs
+  и даты в логах и письмах — по Москве. В БД — `timestamptz`, наружу — ISO-строка с зоной.
+- **Логи в файл** — для длинных процессов, которые разбирают по файлу (импорт поставщика, обмен с 1С, фиды):
+  `Logger` из `src/shared/service/logger/logger.ts` (параметр конструктора или `Container.from(container).get(Logger)`),
+  `logger.toFile("import-acme")` пишет и в stdout, и в `logs/import-acme.log` (строка JSON на запись).
+  В конце job или скрипта — `await fileLogger.flush()`. Папка — `LOGS_DIR`, по умолчанию `backend/logs`,
+  в Docker — volume `/app/logs`.
+
+---
+
+### Файлы на диске
+
+| Папка              | Что лежит                                                   | Наружу                                         |
+|--------------------|-------------------------------------------------------------|------------------------------------------------|
+| `backend/static`   | загрузки file-local: картинки + копии srcset, `private-*`   | `MEDUSA_FILE_URL` (`https://api.<домен>/static`) |
+| `backend/exchange` | сырые пакеты обмена с поставщиками (CommerceML), прочее непубличное | никогда                               |
+| `backend/logs`     | файловые логи (`Logger.toFile`)                             | никогда                                        |
+
+- В Docker это volumes `/app/static`, `/app/exchange`, `/app/logs`, общие для server и worker. В git — не попадают.
+- `static` на проде отдаёт nginx (`backend-static` в `roles/backend`) с `Cache-Control: immutable` на год: имя
+  файла уникально, содержимое по адресу не меняется. `private-*` — без кэша и с `noindex`.
+- Пишем в `static` только через файловый модуль Medusa (`Modules.FILE`), не напрямую в папку — иначе не будет копий
+  srcset и записи о файле. Скрипты обслуживания (`pnpm images:resize`) — исключение.
+- Непубличное (выгрузки поставщиков, отчёты) — только в `exchange`: всё, что в `static`, доступно по URL.
 
 ---
 
@@ -722,7 +813,12 @@ export const config: SubscriberConfig = { event: "order.placed" };
 ## 13. Тесты
 
 - Чистые функции и доменные сервисы (`toXxx`, расчёты) — unit‑тесты в `__tests__/` рядом с кодом, `pnpm test:unit`.
+- Опубликовать товар в тесте можно только с обязательными полями (этап 2.6: категория, фото, цена, предложение).
+  Тесту, которому они не нужны (корзина, доставка), — черновик через workflow и статус напрямую в модуле product.
 - Сервис модуля — `pnpm test:integration:modules`.
+- Интеграционные тесты идут без Redis (`integration-tests/setup.js` обнуляет `REDIS_URL`): иначе события тестов
+  уходят в общую очередь и их забирает запущенный `medusa develop`. Подписчики асинхронны — ждём результат через
+  `waitFor` из `integration-tests/http/helpers/auth.ts`, там же `storeHeaders` и `adminHeaders`.
 - Маршрут целиком (route → Action → Handler/Fetcher → БД) — `integration-tests/http/`, `pnpm test:integration:http`.
   Новый роут витрины без интеграционного теста не считается готовым.
 
@@ -731,6 +827,15 @@ export const config: SubscriberConfig = { event: "order.placed" };
 ## 14. Админка и вёрстка
 
 - Расширения админки — только `src/admin/` на `@medusajs/ui` и `@medusajs/admin-sdk`; ходят только в Admin API.
+- Раскладка админки: в `src/admin/routes/{page}/page.tsx` — только страница (Vite-плагин Medusa разбирает каждый
+  файл в `routes/` своим парсером). Логика — хуки в `src/admin/{feature}/hooks/`, разметка — компоненты в
+  `src/admin/{feature}/components/` без своей логики. Запросы — через `sdk` из `src/admin/lib/sdk.ts` и react-query.
+  Корневой `tsconfig` админку не проверяет (она ESM/Vite): `npx tsc -p src/admin`.
+- Разделы‑справочники — фабрикой `src/admin/crud`: описание `CRUDResource` (колонки, поля формы, адрес на витрине)
+  в `src/admin/{feature}/resource.ts`, страница — `<CRUDPage resource={...} />`. Тексты — `crud.*` (общие) и
+  `{i18n}.title|fields|hints|options` ресурса.
+- Админка по умолчанию на русском (`src/admin/i18n/index.ts` ставит `ru`, пока админ не выбрал язык в профиле).
+  Тексты своих виджетов и страниц — ключами в `src/admin/i18n/json/ru.json` и `useTranslation()`, не строками в JSX.
 - HTML писем собирает тот use‑case, который письмо отправляет; SMTP только доставляет готовое письмо.
 - Витрина (`frontend/`) общается с бэкендом только через Store API и клиент, сгенерированный из `openapi/store.oas.json`.
 

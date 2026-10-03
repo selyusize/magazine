@@ -3,6 +3,11 @@
  * pagination and option facets have something to work with. Safe to delete
  * along with the products it creates; nothing in the app depends on it.
  *
+ * Publishing goes the same way as for real products: drafts first, then a demo
+ * supplier's offers (stock), a main category, and only then `published` — the
+ * publish hook (src/workflows/hooks/product-publish-requirements.ts) rejects
+ * anything less.
+ *
  *   npx medusa exec ./src/scripts/seed-demo-products.ts
  *
  * Re-running it is a no-op for anything it already created: every product uses
@@ -10,9 +15,11 @@
  */
 import {
   createCollectionsWorkflow,
+  createProductCategoriesWorkflow,
   createProductOptionsWorkflow,
   createProductTagsWorkflow,
   createProductsWorkflow,
+  updateProductsWorkflow,
 } from '@medusajs/medusa/core-flows'
 import {
   ContainerRegistrationKeys,
@@ -22,6 +29,13 @@ import {
 } from '@medusajs/framework/utils'
 import type { ExecArgs } from '@medusajs/framework/types'
 
+import { Container } from '@container/index'
+import { UpdateCatalogForProductHandler } from '@domain/catalog/command/update-catalog-for-product/handler'
+import { CreateSupplierOfferHandler } from '@domain/supplier/command/create-supplier-offer/handler'
+import { SyncInventoryForSupplierHandler } from '@domain/supplier/command/sync-inventory-for-supplier/handler'
+import { SyncStockLocationForSupplierHandler } from '@domain/supplier/command/sync-stock-location-for-supplier/handler'
+import { supplierCRUD } from '@domain/supplier/crud/supplier'
+
 const PRODUCT_COUNT = 50
 const HANDLE_PREFIX = 'demo'
 /** Products are created in batches so one failure doesn't roll back all 50. */
@@ -30,6 +44,10 @@ const BATCH_SIZE = 10
 const MAX_VARIANTS = 12
 /** Products per awaited search-ingestion call. */
 const INGEST_CHUNK_SIZE = 25
+/** Every demo offer comes from this supplier; found by name on re-runs. */
+const DEMO_SUPPLIER = { name: 'Демо-поставщик', ship_city: 'Москва' }
+/** Used as the main category when the store has no categories yet. */
+const DEMO_CATEGORY = { name: 'Демо-каталог', handle: 'demo-catalog' }
 
 /**
  * Deterministic PRNG (mulberry32). Keeps re-runs identical, so the same handle
@@ -59,11 +77,10 @@ const TYPES = [
 const COLLECTIONS = ['Summer Essentials', 'Winter Layers', 'Everyday Basics', 'Limited Run']
 const TAGS = ['sale', 'new-arrival', 'organic', 'unisex', 'bestseller', 'last-chance']
 
-/**
- * Extra shared options, so the store page's option facet shows more than the
- * Size and Color the initial seed creates.
- */
-const EXTRA_OPTIONS = [
+/** Shared options, so the store page's option facet has something to show. */
+const SHARED_OPTIONS = [
+  { title: 'Size', values: ['S', 'M', 'L', 'XL'] },
+  { title: 'Color', values: ['Black', 'White'] },
   { title: 'Material', values: ['Cotton', 'Linen', 'Merino', 'Fleece'] },
   { title: 'Fit', values: ['Regular', 'Slim', 'Relaxed'] },
   { title: 'Sleeve', values: ['Short', 'Long'] },
@@ -102,10 +119,20 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     entity: 'shipping_profile',
     fields: ['id'],
   })
-  const { data: categories } = await query.graph({
+  let { data: categories } = await query.graph({
     entity: 'product_category',
     fields: ['id', 'name'],
   })
+  // Publishing needs a main category, so the store needs at least one
+  if (!categories.length) {
+    await createProductCategoriesWorkflow(container).run({
+      input: { product_categories: [{ ...DEMO_CATEGORY, is_active: true }] },
+    })
+    ;({ data: categories } = await query.graph({
+      entity: 'product_category',
+      fields: ['id', 'name'],
+    }))
+  }
   const { data: stores } = await query.graph({
     entity: 'store',
     fields: ['id', 'supported_currencies.currency_code'],
@@ -180,14 +207,14 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     fields: ['id', 'value'],
   })
 
-  // Shared (non-exclusive) options, the way the initial seed defines them.
+  // Shared (non-exclusive) options.
   const { data: existingOptions } = await query.graph({
     entity: 'product_option',
     fields: ['id', 'title', 'values.value'],
     filters: { is_exclusive: false },
   })
 
-  const missingOptions = EXTRA_OPTIONS.filter(
+  const missingOptions = SHARED_OPTIONS.filter(
     (option) => !existingOptions.some((existing) => existing.title === option.title)
   )
 
@@ -219,7 +246,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   if (!sizeOption) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      'No shared "Size" option found. Run the initial data seed first.'
+      'No shared "Size" option found.'
     )
   }
 
@@ -278,7 +305,9 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
 
     const collection = pick(allCollections)
     const chosenTags = pickSome(allTags, 3)
+    // At least one: the first becomes the main category
     const chosenCategories = pickSome(categories, 2)
+    if (!chosenCategories.length) chosenCategories.push(pick(categories))
     const thumbnail = pick(IMAGES)
     const basePrice = 10 + Math.floor(random() * 90)
 
@@ -287,7 +316,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
       handle,
       subtitle: `${type} — demo data`,
       description: `A ${title.toLowerCase()} generated to fill out the demo catalogue. Not a real product.`,
-      status: ProductStatus.PUBLISHED,
+      status: ProductStatus.DRAFT,
       thumbnail,
       images: [{ url: thumbnail }],
       weight: 300 + Math.floor(random() * 500),
@@ -299,6 +328,8 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
       options: chosenOptions.map((option) => ({ id: option.id })),
       variants: combinations.map((combination) => ({
         title: Object.values(combination).join(' / '),
+        // Dropshipping: stock is the demo supplier's offers, kept on its stock location.
+        manage_inventory: true,
         sku: `${handle.toUpperCase()}-${Object.values(combination).join('-').toUpperCase()}`,
         options: combination,
         prices: currencyCodes.map((currency_code) => ({
@@ -317,17 +348,67 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   // ---- Create them --------------------------------------------------------
 
   let created = 0
+  const createdIds: string[] = []
 
   for (let start = 0; start < products.length; start += BATCH_SIZE) {
     const batch = products.slice(start, start + BATCH_SIZE)
 
-    await createProductsWorkflow(container).run({
+    const { result } = await createProductsWorkflow(container).run({
       input: { products: batch as never },
     })
+    createdIds.push(...result.map((product) => product.id))
 
     created += batch.length
     logger.info(`Created ${created}/${products.length} demo products`)
   }
+
+  // ---- Supplier offers, main category, publish ----------------------------
+
+  const app = Container.from(container)
+  const { data: existingSuppliers } = await query.graph({
+    entity: 'supplier',
+    fields: ['id'],
+    filters: { name: DEMO_SUPPLIER.name },
+  })
+  const supplierId =
+    existingSuppliers[0]?.id ??
+    (await app.get(supplierCRUD.handlers.create).handle(DEMO_SUPPLIER)).id
+  // Normally the `supplier.created` subscriber does this; `medusa exec` may exit first
+  await app.get(SyncStockLocationForSupplierHandler).handle({ supplier_id: supplierId })
+
+  const { data: drafts } = await query.graph({
+    entity: 'product',
+    fields: ['id', 'categories.id', 'variants.id', 'variants.sku'],
+    filters: { id: createdIds },
+  })
+
+  for (const product of drafts) {
+    for (const variant of product.variants ?? []) {
+      if (!variant) continue
+      await app.get(CreateSupplierOfferHandler).handle({
+        supplier_id: supplierId,
+        variant_id: variant.id,
+        external_id: variant.sku ?? variant.id,
+        sku: variant.sku ?? null,
+        quantity: Math.floor(random() * 20),
+      })
+    }
+    await app.get(UpdateCatalogForProductHandler).handle({
+      product_id: product.id,
+      main_category_id: product.categories?.[0]?.id ?? null,
+    })
+  }
+  await app.get(SyncInventoryForSupplierHandler).handle({ supplier_id: supplierId })
+
+  for (let start = 0; start < createdIds.length; start += BATCH_SIZE) {
+    await updateProductsWorkflow(container).run({
+      input: {
+        selector: { id: createdIds.slice(start, start + BATCH_SIZE) },
+        update: { status: ProductStatus.PUBLISHED },
+      },
+    })
+  }
+  logger.info(`Published ${createdIds.length} demo products with offers from "${DEMO_SUPPLIER.name}"`)
 
   // ---- Make sure the search index caught up -------------------------------
 

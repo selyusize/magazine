@@ -1,7 +1,7 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
-import { define } from "../../shared/container";
-import { SMTP, type SMTPOptions } from "../../shared/smtp/service/smtp";
+import { define } from "@shared/container";
+import { SMTP, type SMTPOptions } from "@shared/service/smtp/smtp";
 
 /** Локально — Mailpit (devops/docker-compose.yml), на проде — любой SMTP из group_vars. */
 export const smtpConfig: SMTPOptions = {
@@ -14,5 +14,9 @@ export const smtpConfig: SMTPOptions = {
 };
 
 export default [
-  define(SMTP, ({ container }) => new SMTP(smtpConfig, container.resolve(ContainerRegistrationKeys.LOGGER))),
+  define(
+    SMTP,
+    ({ container }) =>
+      new SMTP(smtpConfig, container.resolve(ContainerRegistrationKeys.LOGGER)),
+  ),
 ];

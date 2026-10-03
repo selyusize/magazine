@@ -1,23 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 
-import { siteConfig } from "@shared/config";
+import { env, routes, siteConfig } from "@shared/config";
+import { organizationJsonLd, websiteJsonLd } from "@shared/lib/structured-data";
+import { JsonLd } from "@shared/ui/json-ld";
+
+import { brandFont } from "@app/styles/fonts";
 
 import { Providers } from "./providers";
 import "@app/styles/globals.css";
 
-const geistSans = Geist({
-  variable: "--font-sans",
-  subsets: ["latin", "cyrillic"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin", "cyrillic"],
-});
-
 export const metadata: Metadata = {
+  // Относительные canonical / Open Graph из generateMetadata страниц станут абсолютными
+  metadataBase: new URL(env.siteUrl),
   title: { default: siteConfig.name, template: `%s — ${siteConfig.name}` },
   description: siteConfig.description,
 };
@@ -33,11 +28,13 @@ export async function RootLayout({ children }: Readonly<{ children: React.ReactN
   return (
     <html
       lang={siteConfig.locale}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${brandFont.variable} h-full`}
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
         <Providers nonce={nonce}>{children}</Providers>
+        <JsonLd data={organizationJsonLd(siteConfig, env.siteUrl)} nonce={nonce} />
+        <JsonLd data={websiteJsonLd(siteConfig, env.siteUrl, siteConfig.search ? `${routes.search()}?q=` : undefined)} nonce={nonce} />
       </body>
     </html>
   );

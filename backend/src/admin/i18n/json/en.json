@@ -1,0 +1,275 @@
+{
+  "redirects": {
+    "title": "Redirects",
+    "description": "301s for renamed products, categories and collections are created automatically. Chains are collapsed.",
+    "create": "Add",
+    "edit": "Edit",
+    "actions": "Actions",
+    "cancel": "Cancel",
+    "search": "Search by path",
+    "manual": "Manual",
+    "fields": {
+      "from": "From",
+      "to": "To",
+      "code": "Code",
+      "source": "Source"
+    },
+    "codes": {
+      "301": "301 — moved permanently",
+      "302": "302 — temporary",
+      "410": "410 — gone"
+    },
+    "entities": {
+      "product": "Product",
+      "product_category": "Category",
+      "product_collection": "Collection",
+      "brand": "Brand",
+      "article": "Article",
+      "filter_page": "Landing page"
+    },
+    "empty": {
+      "title": "No redirects yet",
+      "description": "They appear when page URLs change or after a CSV import."
+    },
+    "form": {
+      "createTitle": "New redirect",
+      "editTitle": "Redirect",
+      "save": "Save",
+      "saved": "Redirect saved",
+      "fromHint": "Storefront path: /products/old. Domain, query and trailing slash are dropped.",
+      "toHint": "If the target redirects itself, the rule points straight to the final page."
+    },
+    "delete": {
+      "action": "Delete",
+      "title": "Delete redirect?",
+      "description": "{{path}} will no longer redirect.",
+      "confirm": "Delete",
+      "done": "Redirect deleted"
+    },
+    "import": {
+      "action": "Import CSV",
+      "hint": "Columns: from;to;code. Empty “to” means 410. The file is imported entirely or not at all.",
+      "done": "Rules imported: {{count}}"
+    },
+    "pagination": {
+      "of": "of",
+      "results": "results",
+      "pages": "pages",
+      "prev": "Prev",
+      "next": "Next"
+    }
+  },
+  "crud": {
+    "create": "Create",
+    "edit": "Edit",
+    "actions": "Actions",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saved": "Saved",
+    "search": "Search",
+    "storefrontPath": "Storefront URL",
+    "yes": "Yes",
+    "no": "No",
+    "selectCategory": "Select a category",
+    "invalidJSON": "“{{field}}”: invalid JSON",
+    "delete": {
+      "action": "Delete",
+      "title": "Delete the record?",
+      "description": "“{{name}}” will be deleted. Its storefront URLs will stop opening (410).",
+      "confirm": "Delete",
+      "done": "Deleted"
+    },
+    "pagination": {
+      "of": "of",
+      "results": "results",
+      "pages": "pages",
+      "prev": "Prev",
+      "next": "Next"
+    }
+  },
+  "brands": {
+    "title": "Brands",
+    "description": "Manufacturers: own /brands/… page and catalog filter.",
+    "createTitle": "New brand",
+    "editTitle": "Brand",
+    "empty": {
+      "title": "No brands yet",
+      "description": "Add a brand manually — later they will come with supplier imports."
+    },
+    "fields": {
+      "name": "Name",
+      "handle": "URL (slug)",
+      "description": "Description",
+      "is_active": "Active"
+    },
+    "hints": {
+      "handle": "Empty — built from the name. Changing it adds a 301 from the old URL; renaming keeps the URL."
+    }
+  },
+  "articles": {
+    "title": "Articles",
+    "description": "Store blog: /blog/… pages. Drafts are hidden from the storefront.",
+    "createTitle": "New article",
+    "editTitle": "Article",
+    "empty": {
+      "title": "No articles yet",
+      "description": "Articles bring search traffic to categories and products."
+    },
+    "fields": {
+      "title": "Title",
+      "handle": "URL (slug)",
+      "status": "Status",
+      "excerpt": "Excerpt",
+      "body": "Body"
+    },
+    "options": {
+      "status": {
+        "draft": "Draft",
+        "published": "Published"
+      }
+    },
+    "hints": {
+      "handle": "Empty — built from the name. Changing it adds a 301 from the old URL; renaming keeps the URL.",
+      "body": "HTML. An editor will come with content pages."
+    }
+  },
+  "filterPages": {
+    "title": "Landing pages",
+    "description": "“Category + filters” with own /catalog/{category}/… URL and meta — only these are indexed.",
+    "createTitle": "New landing page",
+    "editTitle": "Landing page",
+    "empty": {
+      "title": "No landing pages yet",
+      "description": "E.g. “Nike sneakers”: the Sneakers category filtered by brand."
+    },
+    "fields": {
+      "category_id": "Category",
+      "title": "Name",
+      "handle": "URL (slug)",
+      "filters": "Filters",
+      "is_active": "Active",
+      "category": {
+        "name": "Category"
+      }
+    },
+    "hints": {
+      "handle": "Empty — built from the name. Unique within the category; renaming the category adds 301s for all its landing pages.",
+      "filters": "JSON: filter code → values, e.g. { \"brand\": [\"nike\"] }. Codes — from Attributes, values — their slugs."
+    }
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "description": "Dropshipping: catalog, purchase prices and stock come from suppliers, orders go to them. Each has its own virtual stock location.",
+    "createTitle": "New supplier",
+    "editTitle": "Supplier",
+    "deleteDescription": "\"{{name}}\" will be deleted with its offers — its stock will drop to zero.",
+    "empty": {
+      "title": "No suppliers yet",
+      "description": "Add a supplier — it gets a stock location, and its offers become product stock."
+    },
+    "fields": {
+      "name": "Name",
+      "is_active": "Active",
+      "ship_city": "Shipping city",
+      "ship_address": "Shipping address",
+      "assembly_days": "Assembly time, days",
+      "contact_name": "Contact person",
+      "phone": "Phone",
+      "email": "Email",
+      "order_email": "Orders email",
+      "order_api_url": "Orders API",
+      "exchange": "Feed source",
+      "markup": "Markup"
+    },
+    "hints": {
+      "is_active": "An inactive supplier doesn't sell: its offers' stock drops to zero.",
+      "ship_city": "Supplier's stock location address — carriers calculate shipping from it.",
+      "assembly_days": "How long the supplier assembles an order — part of the delivery time on the product page.",
+      "exchange": "JSON: CommerceML exchange settings (push/pull, URL, price type) — used by the import.",
+      "markup": "JSON: supplier markup rules — used for retail prices."
+    }
+  },
+  "attributes": {
+    "title": "Attributes",
+    "description": "Specs table on the product page and catalog filters. The code is used in filter URLs and filter pages.",
+    "createTitle": "New attribute",
+    "editTitle": "Attribute",
+    "deleteDescription": "\"{{name}}\" will be deleted with its values on all products.",
+    "empty": {
+      "title": "No attributes yet",
+      "description": "For example, \"Material\" or \"Power, W\"."
+    },
+    "fields": {
+      "name": "Name",
+      "handle": "Code",
+      "type": "Type",
+      "unit": "Unit",
+      "is_filterable": "Filter",
+      "is_visible": "On product page",
+      "rank": "Order"
+    },
+    "options": {
+      "type": {
+        "string": "Text",
+        "number": "Number",
+        "boolean": "Yes/no"
+      }
+    },
+    "hints": {
+      "handle": "Empty — from the name. The code goes into filter URLs — change with care.",
+      "type": "Number — for range filters; yes/no — a toggle.",
+      "is_filterable": "Show as a catalog filter.",
+      "rank": "Lower goes first in the specs table and filters."
+    }
+  },
+  "productCatalog": {
+    "title": "Catalog",
+    "brand": "Brand",
+    "mainCategory": "Main category",
+    "mainCategoryHint": "Breadcrumbs and canonical come from it. Required to publish.",
+    "ofProduct": "product category",
+    "none": "Not selected",
+    "save": "Save",
+    "saved": "Product catalog saved"
+  },
+  "supplierOffers": {
+    "title": "Suppliers",
+    "description": "On sale: {{count}} pcs — total stock of active suppliers.",
+    "empty": "No offers — the product can't be published without them.",
+    "inactive": "inactive",
+    "fields": {
+      "supplier": "Supplier",
+      "variant": "Variant",
+      "external_id": "Feed ID",
+      "sku": "SKU",
+      "barcode": "Barcode",
+      "purchase_price": "Purchase price",
+      "quantity": "Stock"
+    },
+    "form": {
+      "createTitle": "New offer",
+      "editTitle": "Offer",
+      "selectSupplier": "Select a supplier",
+      "selectVariant": "Select a variant",
+      "fixedHint": "Supplier and variant can't be changed later — delete the offer and create a new one.",
+      "externalIdHint": "Product ID in the supplier's feed (product#characteristic) — the import updates the offer by it.",
+      "quantityHint": "Stock goes to the supplier's location; usually updated by the import.",
+      "saved": "Offer saved"
+    },
+    "delete": {
+      "title": "Delete offer?",
+      "description": "Stock of \"{{supplier}}\" for \"{{variant}}\" will stop selling.",
+      "confirm": "Delete",
+      "done": "Offer deleted"
+    }
+  },
+  "productAttributes": {
+    "title": "Attributes",
+    "description": "Product values; variant values come with the import.",
+    "empty": "No attributes yet — add them in the Attributes section.",
+    "multipleHint": "Several values — separated by \";\"",
+    "none": "Not set",
+    "save": "Save",
+    "saved": "Attributes saved"
+  }
+}

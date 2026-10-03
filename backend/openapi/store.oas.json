@@ -23192,6 +23192,421 @@
           }
         }
       }
+    },
+    "/store/delivery/points": {
+      "get": {
+        "operationId": "GetDeliveryPoints",
+        "summary": "Пункты выдачи перевозчика в городе",
+        "description": "Для карты при выборе доставки. `id` пункта передаётся в data способа доставки как `pickup_point_id` (расчёт цены и добавление способа в корзину). Город не найден у перевозчика — пустой список.",
+        "x-authenticated": false,
+        "parameters": [
+          {
+            "name": "x-publishable-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cdek",
+                "yandex-delivery"
+              ]
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "Москва"
+          }
+        ],
+        "tags": [
+          "Delivery"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "points"
+                  ],
+                  "properties": {
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "provider",
+                          "name",
+                          "type",
+                          "address",
+                          "city",
+                          "postal_code",
+                          "latitude",
+                          "longitude",
+                          "work_time",
+                          "phone"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "cdek",
+                              "yandex-delivery"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "pickup_point",
+                              "postamat",
+                              "post_office"
+                            ]
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "postal_code": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "latitude": {
+                            "type": "number"
+                          },
+                          "longitude": {
+                            "type": "number"
+                          },
+                          "work_time": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "phone": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/redirects": {
+      "get": {
+        "operationId": "GetRedirects",
+        "summary": "Все редиректы витрины",
+        "description": "Таблица целиком — витрина держит её у себя и редиректит без запроса на каждый путь. Цепочек нет.",
+        "x-authenticated": false,
+        "parameters": [
+          {
+            "name": "x-publishable-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Redirects"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "redirects"
+                  ],
+                  "properties": {
+                    "redirects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "from_path",
+                          "to_path",
+                          "code"
+                        ],
+                        "properties": {
+                          "from_path": {
+                            "type": "string"
+                          },
+                          "to_path": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "null — страницы больше нет (410)"
+                          },
+                          "code": {
+                            "type": "integer",
+                            "enum": [
+                              301,
+                              302,
+                              410
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/redirects/resolve": {
+      "get": {
+        "operationId": "GetRedirectsResolve",
+        "summary": "Редирект для пути",
+        "description": "Путь нормализуется (домен, query, завершающий слеш, %-кодирование). Нет правила — redirect = null.",
+        "x-authenticated": false,
+        "parameters": [
+          {
+            "name": "x-publishable-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "/products/old-handle"
+          }
+        ],
+        "tags": [
+          "Redirects"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "redirect"
+                  ],
+                  "properties": {
+                    "redirect": {
+                      "nullable": true,
+                      "type": "object",
+                      "required": [
+                        "from_path",
+                        "to_path",
+                        "code"
+                      ],
+                      "properties": {
+                        "from_path": {
+                          "type": "string"
+                        },
+                        "to_path": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "null — страницы больше нет (410)"
+                        },
+                        "code": {
+                          "type": "integer",
+                          "enum": [
+                            301,
+                            302,
+                            410
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/site-settings": {
+      "get": {
+        "operationId": "GetSiteSettings",
+        "summary": "Реквизиты и контакты магазина",
+        "description": "Название, домен, юрлицо (ИНН/ОГРН/КПП), контакты, адрес и соцсети — для Organization в schema.org и подвала.",
+        "x-authenticated": false,
+        "parameters": [
+          {
+            "name": "x-publishable-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Site Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "site_settings"
+                  ],
+                  "properties": {
+                    "site_settings": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "domain",
+                        "url",
+                        "legal",
+                        "contacts",
+                        "address",
+                        "social_links"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "domain": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "legal": {
+                          "type": "object",
+                          "required": [
+                            "name",
+                            "inn",
+                            "ogrn",
+                            "kpp",
+                            "address"
+                          ],
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "inn": {
+                              "type": "string"
+                            },
+                            "ogrn": {
+                              "type": "string"
+                            },
+                            "kpp": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "address": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "contacts": {
+                          "type": "object",
+                          "required": [
+                            "phone",
+                            "email",
+                            "working_hours"
+                          ],
+                          "properties": {
+                            "phone": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string"
+                            },
+                            "working_hours": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "address": {
+                          "type": "object",
+                          "required": [
+                            "country_code",
+                            "postal_code",
+                            "city",
+                            "street"
+                          ],
+                          "properties": {
+                            "country_code": {
+                              "type": "string"
+                            },
+                            "postal_code": {
+                              "type": "string"
+                            },
+                            "city": {
+                              "type": "string"
+                            },
+                            "street": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "social_links": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "url"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

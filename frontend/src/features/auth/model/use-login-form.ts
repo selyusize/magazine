@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 
 import { routes } from "@shared/config";
 import { getErrorMessage, getFieldErrors } from "@shared/lib/errors";
@@ -15,7 +15,7 @@ export function useLoginForm({ redirectTo = routes.account }: { redirectTo?: str
   const login = useLogin();
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof LoginInput, string>>>({});
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const parsed = loginSchema.safeParse(Object.fromEntries(new FormData(event.currentTarget)));
     setFieldErrors(parsed.success ? {} : getFieldErrors(parsed.error));

@@ -22,8 +22,11 @@ COPY backend/openapi/ /repo/backend/openapi/
 # NEXT_PUBLIC_* вшиваются в клиентский бандл на этапе сборки
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
+# Хосты фото товаров для next/image (next.config.ts) — тоже на этапе сборки
+ARG IMAGE_REMOTE_HOSTS=""
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY} \
+    IMAGE_REMOTE_HOSTS=${IMAGE_REMOTE_HOSTS} \
     NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 

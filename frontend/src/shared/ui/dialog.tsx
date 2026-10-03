@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@shared/lib/utils"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Button } from "@shared/ui/button"
@@ -51,13 +51,16 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  overlayProps,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** Пропсы подложки: своё положение и цвет (например, панель под хедером) */
+  overlayProps?: React.ComponentProps<typeof DialogOverlay>
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay {...overlayProps} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
@@ -76,7 +79,7 @@ function DialogContent({
             >
               <XIcon
               />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">Закрыть</span>
             </Button>
           </DialogPrimitive.Close>
         )}

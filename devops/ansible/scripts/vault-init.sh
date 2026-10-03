@@ -40,6 +40,10 @@ vault_medusa_auth_mfa_encryption_key: $(secret 32)
 # Пароль SMTP (smtp_host / smtp_user — в group_vars/all/main.yml). Для Яндекс 360 и Mail.ru — пароль приложения
 vault_smtp_password: ""
 
+# Доставка: секрет СДЭК (cdek_client_id — в group_vars/all/main.yml) и токен Яндекс Доставки из кабинета
+vault_cdek_client_secret: ""
+vault_yandex_delivery_token: ""
+
 # Дашборд traefik: https://traefik.<домен>, пользователь admin
 vault_traefik_dashboard_password: $(secret 12)
 

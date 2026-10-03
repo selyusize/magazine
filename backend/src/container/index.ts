@@ -1,4 +1,4 @@
-import { createContainer } from "../shared/container";
+import { createContainer } from "@shared/container";
 import { dependencies } from "./dependencies";
 
 /**

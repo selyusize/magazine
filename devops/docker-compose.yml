@@ -25,6 +25,14 @@ x-medusa-env: &medusa-env
   SHOP_NAME: ${SHOP_NAME:-Магазин}
   STOREFRONT_URL: http://localhost:${FRONTEND_PORT:-3000}
   MEDUSA_ADMIN_URL: http://localhost:${BACKEND_PORT:-9000}
+  # Публичный адрес загрузок; локально их отдаёт сам Medusa, на проде — nginx перед ним
+  MEDUSA_FILE_URL: http://localhost:${BACKEND_PORT:-9000}/static
+  # Доставка: пусто — перевозчик не подключается
+  CDEK_BASE_URL: ${CDEK_BASE_URL:-}
+  CDEK_CLIENT_ID: ${CDEK_CLIENT_ID:-}
+  CDEK_CLIENT_SECRET: ${CDEK_CLIENT_SECRET:-}
+  YANDEX_DELIVERY_BASE_URL: ${YANDEX_DELIVERY_BASE_URL:-}
+  YANDEX_DELIVERY_TOKEN: ${YANDEX_DELIVERY_TOKEN:-}
 
 x-backend: &backend
   profiles: [app]
@@ -33,6 +41,11 @@ x-backend: &backend
     context: ..
     dockerfile: devops/backend.Dockerfile
   restart: unless-stopped
+  volumes:
+    # Загрузки (file-local), пакеты обмена с поставщиками и файловые логи — общие для server и worker
+    - backend-static:/app/static
+    - backend-exchange:/app/exchange
+    - backend-logs:/app/logs
 
 services:
   postgres:
@@ -125,10 +138,13 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
+        IMAGE_REMOTE_HOSTS: ${IMAGE_REMOTE_HOSTS:-}
     restart: unless-stopped
     environment:
       # Сервер Next ходит в Medusa по внутренней сети compose, браузер — по NEXT_PUBLIC_API_URL
       API_INTERNAL_URL: http://backend:9000
+      # Регион для цен в каталоге и поиске; пусто — первый регион магазина
+      MEDUSA_REGION_ID: ${MEDUSA_REGION_ID:-}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     volumes:
@@ -138,6 +154,9 @@ services:
         condition: service_healthy
 
 volumes:
+  backend-static:
+  backend-exchange:
+  backend-logs:
   postgres-data:
   redis-data:
   frontend-cache:

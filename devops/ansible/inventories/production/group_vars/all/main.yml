@@ -30,6 +30,14 @@ smtp_secure: true            # false — STARTTLS на 587
 smtp_user: shop@example.ru
 smtp_from: "{{ shop_name }} <{{ smtp_user }}>"
 
+# ─── Доставка ───────────────────────────────────────────────────────────────
+# Перевозчики (backend/src/modules/fulfillment-*). Секреты — vault_cdek_client_secret, vault_yandex_delivery_token.
+# Пустой cdek_client_id / токен — перевозчик не подключается, и сид при первом деплое не создаёт его способы
+# (потом их можно завести в админке: Settings → Locations & Shipping).
+cdek_base_url: https://api.cdek.ru
+cdek_client_id: ""
+yandex_delivery_base_url: https://b2b-authproxy.taxi.yandex.net
+
 # ─── Домены ─────────────────────────────────────────────────────────────────
 frontend_domain: "{{ domain }}"
 # www.<домен> → <домен> (301)

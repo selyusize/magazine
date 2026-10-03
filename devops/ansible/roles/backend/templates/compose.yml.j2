@@ -27,6 +27,8 @@ services:
       DISABLE_MEDUSA_ADMIN: "false"
     volumes:
       - uploads:/app/static
+      - exchange:/app/exchange
+      - logs:/app/logs
     networks:
       internal: {}
       proxy:
@@ -69,14 +71,51 @@ services:
       DISABLE_MEDUSA_ADMIN: "true"
     volumes:
       - uploads:/app/static
+      - exchange:/app/exchange
+      - logs:/app/logs
     networks:
       - internal
       - proxy
+
+  # Загрузки (/static) отдаёт nginx с диска с долгим кэшем — Node на картинки не тратится.
+  # Правило длиннее, чем Host() у backend, поэтому у traefik оно приоритетнее
+  backend-static:
+    image: {{ backend_static_image }}
+    container_name: {{ project_name }}-backend-static
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./static-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - uploads:/srv/static:ro
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: {{ docker_proxy_network }}
+      traefik.http.services.{{ project_name }}-backend-static.loadbalancer.server.port: "8080"
+      traefik.http.routers.{{ project_name }}-backend-static.rule: Host(`{{ backend_domain }}`) && PathPrefix(`/static/`)
+      traefik.http.routers.{{ project_name }}-backend-static.entrypoints: websecure
+      traefik.http.routers.{{ project_name }}-backend-static.service: {{ project_name }}-backend-static
 
 volumes:
   # Загрузки Medusa (картинки товаров): переживают редеплой, общие для server и worker
   uploads:
     name: {{ project_name }}-backend-uploads
+  # Пакеты обмена с поставщиками (CommerceML): непубличные, общие для server (приём) и worker (разбор)
+  exchange:
+    name: {{ project_name }}-backend-exchange
+  # Файловые логи (Logger.toFile): импорт, обмен с 1С, фиды — общие для server и worker
+  logs:
+    name: {{ project_name }}-backend-logs
 
 networks:
   internal:

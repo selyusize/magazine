@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { FormEventHandler } from "react";
+import type { SubmitEventHandler } from "react";
 
 import { Button } from "@shared/ui/button";
 import { Card, CardContent } from "@shared/ui/card";
@@ -10,7 +10,7 @@ import { AuthImage } from "./auth-image";
 import { LegalNotice } from "./legal-notice";
 
 export type SignupFormViewProps = {
-  onSubmit: FormEventHandler<HTMLFormElement>;
+  onSubmit: SubmitEventHandler<HTMLFormElement>;
   isPending: boolean;
   fieldErrors: { email?: string; password?: string; confirmPassword?: string };
   formError?: string;

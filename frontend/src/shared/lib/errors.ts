@@ -16,6 +16,7 @@ export const errorMessages = {
   tooManyRequests: "Слишком много попыток. Попробуйте позже",
   notFound: "Не найдено",
   cartNotFound: "Корзина не найдена",
+  outOfStock: "Этого товара уже нет в нужном количестве. Уменьшите количество или выберите другой вариант",
   required: "Обязательное поле",
   email: "Введите корректный email",
   passwordTooShort: (min: number) => `Минимум ${min} символов`,
@@ -27,6 +28,7 @@ const byBackendMessage: Record<string, string> = {
   "Invalid email or password": errorMessages.invalidCredentials,
   "Identity with email already exists": errorMessages.emailTaken,
   "Cart not found": errorMessages.cartNotFound,
+  "Some variant does not have the required inventory": errorMessages.outOfStock,
 };
 
 const byStatus: Record<number, string> = {

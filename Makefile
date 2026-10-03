@@ -2,6 +2,9 @@ SHELL := /bin/bash
 
 COMPOSE := docker compose -f devops/docker-compose.yml
 APP_SERVICES := backend-migrate backend backend-worker frontend
+# Лок next dev: держит процесс на любом порту (напр. -p 3123) и не даёт запустить второй в frontend/
+NEXT_DEV_KILL = pid=$$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' frontend/.next/dev/lock 2>/dev/null); \
+	[ -n "$$pid" ] && kill $$(ps -o ppid= -p $$pid) $$pid 2>/dev/null; true
 
 # --- Прод (Ansible): окружение = inventories/<INVENTORY>, TAG — тег образов (sha-<commit>), TAGS — теги ролей
 INVENTORY ?= production
@@ -55,11 +58,13 @@ dev-install: ## Первичная настройка: .env, зависимос�
 
 dev-up: ## Postgres/Redis/Mailpit + генерация API + backend (:9000) и frontend (:3000); Ctrl+C — остановить
 	@$(COMPOSE) --profile app stop $(APP_SERVICES) 2>/dev/null || true
+	@$(NEXT_DEV_KILL)
 	$(COMPOSE) up -d --wait postgres redis mailpit
 	@$(MAKE) --no-print-directory api-generate
 	@trap 'kill 0' INT TERM EXIT; \
 	(cd backend && pnpm dev 2>&1 | awk '{ print "\033[35m[backend]\033[0m  " $$0; fflush() }') & \
-	(cd frontend && pnpm exec next dev 2>&1 | awk '{ print "\033[36m[frontend]\033[0m " $$0; fflush() }') & \
+	(for i in $$(seq 1 90); do curl -sf http://localhost:9000/health >/dev/null && break; sleep 1; done; \
+	 cd frontend && pnpm exec next dev 2>&1 | awk '{ print "\033[36m[frontend]\033[0m " $$0; fflush() }') & \
 	wait
 
 api-generate: ## OpenAPI Medusa (Store API + свои роуты с @oas) → клиент и хуки Orval во фронте
@@ -84,6 +89,7 @@ test: ## Тесты фронта: unit + integration против Medusa (под
 dev-down: ## Остановить контейнеры и dev-серверы :9000/:3000 (данные в volume сохраняются)
 	$(COMPOSE) --profile app down
 	@for port in 9000 3000; do lsof -ti tcp:$$port -sTCP:LISTEN | xargs kill 2>/dev/null || true; done
+	@$(NEXT_DEV_KILL)
 
 dev-restart: ## dev-down + dev-up
 	@$(MAKE) --no-print-directory dev-down
