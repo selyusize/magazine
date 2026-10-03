@@ -37,6 +37,17 @@ const NOT_A_CLASS = new Set<unknown>([
   undefined,
 ]);
 
+/** Экземпляр класса-токена: проверка вместо приведения — `define` с чужим классом ловится сразу. */
+function ensureInstance<T>(value: unknown, token: ClassToken<T>): T {
+  if (value instanceof token) return value;
+  throw new MedusaError(
+    MedusaError.Types.UNEXPECTED_STATE,
+    `Контейнер: для ${token.name} получен объект другого класса — проверьте define()`,
+  );
+}
+
+const isClassToken = (value: unknown): value is ClassToken<unknown> => typeof value === "function";
+
 /**
  * Контейнер приложения: определения из `define`, остальное — автосборка классов с `@Injectable()`.
  * `from(container)` открывает область: внутри неё каждый класс создаётся один раз.
@@ -52,7 +63,7 @@ export function createContainer(definitions: Definition<unknown>[]) {
       const resolving: ClassToken<unknown>[] = [];
 
       const get = <T>(token: ClassToken<T>): T => {
-        if (instances.has(token)) return instances.get(token) as T;
+        if (instances.has(token)) return ensureInstance(instances.get(token), token);
 
         if (resolving.includes(token)) {
           const chain = [...resolving, token]
@@ -65,28 +76,27 @@ export function createContainer(definitions: Definition<unknown>[]) {
         }
 
         resolving.push(token);
-        const instance = factories.has(token)
-          ? factories.get(token)!({ get, container })
-          : build(token);
+        const factory = factories.get(token);
+        const instance = ensureInstance(factory ? factory({ get, container }) : build(token), token);
         resolving.pop();
 
         instances.set(token, instance);
-        return instance as T;
+        return instance;
       };
 
       const build = <T>(token: ClassToken<T>): T => {
         const args = getParamTokens(token).map((param, index) => {
           if (param === MEDUSA_CONTAINER) return container;
-          if (NOT_A_CLASS.has(param)) {
+          if (NOT_A_CLASS.has(param) || !isClassToken(param)) {
             throw new MedusaError(
               MedusaError.Types.UNEXPECTED_STATE,
               `Контейнер: не удалось собрать ${token.name} — параметр #${index + 1} не класс. ` +
                 "Для значений из конфига опишите класс через define(), для классов уберите `import type`.",
             );
           }
-          return get(param as ClassToken<unknown>);
+          return get(param);
         });
-        return new (token as unknown as new (...args: unknown[]) => T)(...args);
+        return ensureInstance(Reflect.construct(token, args), token);
       };
 
       return { get };

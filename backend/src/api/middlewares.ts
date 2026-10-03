@@ -3,10 +3,12 @@ import {
   defineMiddlewares,
 } from "@medusajs/framework/http";
 
+import { exchangeWith1CMiddleware } from "./1c/exchange/[supplier]/middleware";
 import { adminArticlesMiddleware } from "./admin/articles/middleware";
 import { adminAttributesMiddleware } from "./admin/attributes/middleware";
 import { adminBrandsMiddleware } from "./admin/brands/middleware";
 import { adminFilterPagesMiddleware } from "./admin/filter-pages/middleware";
+import { adminExchangeMiddleware } from "./admin/import-runs/middleware";
 import { adminProductAttributesMiddleware } from "./admin/products/[id]/attributes/middleware";
 import { adminProductCatalogMiddleware } from "./admin/products/[id]/catalog/middleware";
 import { adminRedirectsMiddleware } from "./admin/redirects/middleware";
@@ -31,6 +33,7 @@ export default defineMiddlewares({
         }),
       ],
     },
+    ...exchangeWith1CMiddleware,
     ...storeDeliveryPointsMiddleware,
     ...storeRedirectsResolveMiddleware,
     ...adminRedirectsMiddleware,
@@ -39,6 +42,7 @@ export default defineMiddlewares({
     ...adminArticlesMiddleware,
     ...adminFilterPagesMiddleware,
     ...adminSuppliersMiddleware,
+    ...adminExchangeMiddleware,
     ...adminSupplierOffersMiddleware,
     ...adminAttributesMiddleware,
     ...adminProductCatalogMiddleware,

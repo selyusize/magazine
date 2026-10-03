@@ -63,7 +63,7 @@ export class YandexDeliveryFulfillmentService extends CarrierFulfillmentService 
   async calculatePrice(
     optionData: CalculateShippingOptionPriceDTO["optionData"],
     data: CalculateShippingOptionPriceDTO["data"],
-    context: CalculateShippingOptionPriceDTO["context"],
+    context: CalculationContext,
   ): Promise<CalculatedShippingOptionPrice> {
     const option = this.option(optionData);
     const destination = option.pickup

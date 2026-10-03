@@ -2,9 +2,12 @@ import { toast } from "@medusajs/ui";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
+import { oneOf } from "../../lib/narrow";
+
 import {
   useSaveRedirect,
   type AdminRedirect,
+  REDIRECT_CODES,
   type RedirectCode,
 } from "./redirects-api";
 
@@ -47,7 +50,7 @@ export function useRedirectForm(
     toPath,
     setToPath,
     code,
-    setCode: (value: string) => setCode(Number(value) as RedirectCode),
+    setCode: (value: string) => setCode(oneOf(Number(value), REDIRECT_CODES, 301)),
     isGone,
     canSubmit,
     isSaving: save.isPending,

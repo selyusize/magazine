@@ -13,6 +13,6 @@ export const findFilterPageIdsStep = createStep(
       fields: ["id"],
       filters: { category_id: command.category_id },
     });
-    return new StepResponse(data.map((row) => row.id as string));
+    return new StepResponse(data.map((row) => row.id));
   },
 );

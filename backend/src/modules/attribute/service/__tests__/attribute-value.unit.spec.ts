@@ -1,4 +1,4 @@
-import { normalizeAttributeValue } from "../attribute-value";
+import { normalizeAttributeValue, parseAttributeValue } from "../attribute-value";
 
 const string = { name: "Материал", type: "string" as const };
 const number = { name: "Мощность", type: "number" as const };
@@ -34,5 +34,17 @@ describe("normalizeAttributeValue", () => {
     expect(() => normalizeAttributeValue(boolean, "наверное")).toThrow(
       "не да/нет",
     );
+  });
+});
+
+describe("parseAttributeValue", () => {
+  it("ошибка — текстом, без исключения", () => {
+    expect(parseAttributeValue(number, "много")).toEqual({
+      error: "Характеристика «Мощность»: «много» — не число",
+    });
+    expect(parseAttributeValue(number, "2,5")).toEqual({
+      value: { value: "2.5", handle: "2-5", number: 2.5 },
+    });
+    expect(parseAttributeValue(string, " ")).toEqual({ value: null });
   });
 });

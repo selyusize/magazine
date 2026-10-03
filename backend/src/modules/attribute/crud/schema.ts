@@ -1,6 +1,8 @@
 import { z } from "@medusajs/framework/zod";
 
-export const ATTRIBUTE_TYPES = ["string", "number", "boolean"] as const;
+import { ATTRIBUTE_TYPES } from "../service/attribute-value";
+
+export { ATTRIBUTE_TYPES };
 
 const fields = {
   name: z.string().trim().min(1).max(200),

@@ -139,7 +139,7 @@ describe("Маппер имён на живой Medusa", () => {
         address_2: "кв. 5",
         city: "Москва",
         postalCode: "101000",
-        countryCode: "de",
+        countryCode: "ru",
         phone: "+79990000000",
       },
     });
@@ -152,7 +152,7 @@ describe("Маппер имён на живой Medusa", () => {
       address_1: "ул. Ленина, 1",
       address_2: "кв. 5",
       postalCode: "101000",
-      countryCode: "de",
+      countryCode: "ru",
     });
   });
 

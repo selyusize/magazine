@@ -1,6 +1,6 @@
 import { MedusaError } from "@medusajs/framework/utils";
 
-import { findRedirectProblem, normalizePath, type RedirectCode } from "./path";
+import { findRedirectProblem, isRedirectCode, normalizePath, type RedirectCode } from "./path";
 
 export type RedirectCSVRow = {
   from_path: string;
@@ -43,11 +43,12 @@ export function parseRedirectsCSV(text: string): RedirectCSVRow[] {
 
     const to_path = to ? normalizePath(to) : null;
     const code = rawCode ? Number(rawCode) : to_path === null ? 410 : 301;
-    const row = {
-      from_path: normalizePath(from),
-      to_path,
-      code: code as RedirectCode,
-    };
+    if (!isRedirectCode(code))
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `CSV, строка ${lineNumber}: код ${rawCode} — допустимы 301, 302, 410`,
+      );
+    const row = { from_path: normalizePath(from), to_path, code };
 
     const problem = findRedirectProblem(row);
     if (problem)

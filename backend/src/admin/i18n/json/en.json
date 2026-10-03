@@ -177,16 +177,12 @@
       "phone": "Phone",
       "email": "Email",
       "order_email": "Orders email",
-      "order_api_url": "Orders API",
-      "exchange": "Feed source",
-      "markup": "Markup"
+      "order_api_url": "Orders API"
     },
     "hints": {
       "is_active": "An inactive supplier doesn't sell: its offers' stock drops to zero.",
       "ship_city": "Supplier's stock location address — carriers calculate shipping from it.",
-      "assembly_days": "How long the supplier assembles an order — part of the delivery time on the product page.",
-      "exchange": "JSON: CommerceML exchange settings (push/pull, URL, price type) — used by the import.",
-      "markup": "JSON: supplier markup rules — used for retail prices."
+      "assembly_days": "How long the supplier assembles an order — part of the delivery time on the product page."
     }
   },
   "attributes": {
@@ -271,5 +267,163 @@
     "none": "Not set",
     "save": "Save",
     "saved": "Attributes saved"
+  },
+  "exchange": {
+    "title": "Import",
+    "description": "Supplier catalog, prices and stock from CommerceML 2: exchange settings, run history, group and property mapping.",
+    "selectSupplier": "Select a supplier",
+    "close": "Close",
+    "empty": {
+      "title": "No suppliers yet",
+      "description": "Add a supplier under Suppliers to configure its feed here."
+    },
+    "tabs": {
+      "settings": "Exchange settings",
+      "runs": "History",
+      "groups": "Groups",
+      "properties": "Properties",
+      "review": "Needs review"
+    },
+    "settings": {
+      "saved": "Exchange settings saved",
+      "copied": "Address copied",
+      "url": "1C exchange address",
+      "urlHint": "Set it in 1C “Exchange with website” together with the login and password below.",
+      "modes": {
+        "off": "Off",
+        "push": "1C pushes (push)",
+        "pull": "Fetch by URL (pull)"
+      },
+      "modeHints": {
+        "off": "Supplier feeds are neither accepted nor downloaded.",
+        "push": "The supplier’s 1C uploads the catalog and offers via the standard site exchange protocol.",
+        "pull": "The shop downloads the files from the URLs on schedule."
+      },
+      "fields": {
+        "mode": "Mode",
+        "login": "1C login",
+        "password": "1C password",
+        "urls": "Feed URLs",
+        "url_login": "URL login",
+        "url_password": "URL password",
+        "pull_interval_minutes": "Interval, min",
+        "purchase_price_type": "Purchase price type",
+        "retail_price_type": "Retail price type",
+        "markup_percent": "Markup, %",
+        "publish": "Publish ready products",
+        "brand_property": "Brand property"
+      },
+      "hints": {
+        "login": "1C authenticates with it (Basic).",
+        "password": "Set the same password in 1C.",
+        "urls": "One per line, in order: catalog (import.xml) first, then offers (offers.xml); zip is fine.",
+        "url_login": "If the URLs are password protected.",
+        "url_password": "Password for the supplier URLs.",
+        "pull_interval_minutes": "How often to fetch, at least 5 minutes. Empty — hourly.",
+        "purchase_price_type": "Price type id or name from the feed. Empty — first price.",
+        "retail_price_type": "If the supplier provides a retail price. Empty — purchase + markup.",
+        "markup_percent": "Markup on the purchase price for the retail price.",
+        "publish": "New products with a category, image, price and stock are published right away; otherwise drafts.",
+        "brand_property": "If the brand is in a property with a custom name."
+      }
+    },
+    "runs": {
+      "title": "Import run",
+      "description": "Every feed is a run: newest first, click for details and errors.",
+      "pull": "Fetch now",
+      "started": "Import queued",
+      "failed": "Could not download the feed",
+      "retry": "Retry from where it stopped",
+      "onlyChanges": "Changes only",
+      "noErrors": "No errors",
+      "errors": "Errors ({{count}})",
+      "empty": {
+        "title": "No runs yet",
+        "description": "Configure the exchange — runs will appear here."
+      },
+      "fields": {
+        "created_at": "Started",
+        "finished_at": "Finished",
+        "source": "Source",
+        "status": "Status",
+        "stats": "Result",
+        "files": "Files",
+        "progress": "Now",
+        "mode": "Feed",
+        "message": "Reason"
+      },
+      "statuses": {
+        "receiving": "Receiving",
+        "queued": "Queued",
+        "running": "Running",
+        "done": "Done",
+        "failed": "Failed"
+      },
+      "sources": {
+        "push": "1C",
+        "pull": "Scheduled",
+        "manual": "Manual"
+      },
+      "scopes": {
+        "products": "Products",
+        "offers": "Offers"
+      },
+      "counters": {
+        "received": "received",
+        "created": "created",
+        "updated": "updated",
+        "skipped": "unchanged",
+        "linked": "merged",
+        "zeroed": "zeroed",
+        "failed": "failed"
+      }
+    },
+    "mapping": {
+      "saved": "Saved — applies on the next feed",
+      "none": "Not mapped"
+    },
+    "groups": {
+      "description": "Products of the group get this store category; a subgroup without one inherits from its parent.",
+      "inherited": "From parent: {{name}}",
+      "fields": {
+        "name": "Supplier group",
+        "category": "Store category"
+      },
+      "empty": {
+        "title": "No groups yet",
+        "description": "They appear after the first catalog feed."
+      }
+    },
+    "properties": {
+      "description": "Property values become a store attribute; unmapped ones are kept in product data.",
+      "metadata": "Don’t show (product data)",
+      "fields": {
+        "name": "Supplier property",
+        "values": "Values",
+        "attribute": "Store attribute"
+      },
+      "empty": {
+        "title": "No properties yet",
+        "description": "They appear after the first catalog feed."
+      }
+    },
+    "review": {
+      "unmappedGroups": "Groups without a category: {{count}} — map them on the Groups tab.",
+      "fields": {
+        "title": "Product",
+        "external_id": "Supplier id",
+        "problems": "Issues"
+      },
+      "problems": {
+        "unmapped_group": "no category",
+        "no_image": "no image",
+        "no_price": "no price",
+        "no_offer": "no offer"
+      },
+      "empty": {
+        "title": "Nothing to review",
+        "description": "All supplier products are ready to publish."
+      }
+    }
   }
 }

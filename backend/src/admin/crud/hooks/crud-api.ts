@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { sdk } from "../../lib/sdk";
-import type { CRUDResource, CRUDRow } from "../types";
+import { type CRUDResource, type CRUDRow, isCRUDRow } from "../types";
 
 type Page = { rows: CRUDRow[]; count: number };
 
@@ -24,9 +24,10 @@ export function useCRUDApi(resource: CRUDResource) {
             },
           },
         );
+        const rows = data[resource.response.many];
         return {
-          rows: data[resource.response.many] as CRUDRow[],
-          count: data.count as number,
+          rows: Array.isArray(rows) ? rows.filter(isCRUDRow) : [],
+          count: typeof data.count === "number" ? data.count : 0,
         };
       },
       placeholderData: (previous) => previous,
@@ -48,7 +49,9 @@ export function useCRUDApi(resource: CRUDResource) {
             body,
           },
         );
-        return data[resource.response.one] as CRUDRow;
+        const row = data[resource.response.one];
+        if (!isCRUDRow(row)) throw new Error("Сервер вернул запись без id");
+        return row;
       },
       onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
     });

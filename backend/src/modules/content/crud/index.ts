@@ -1,19 +1,20 @@
 import { defineCRUD } from "@shared/crud/define-crud";
 import type { CRUDRow } from "@shared/crud/definition";
+import { oneOf, text, textOrNull, toDate } from "@shared/query/narrow";
 
 import { CONTENT_MODULE } from "../index";
 import type { ArticleDTO } from "./dto";
-import { CreateArticleSchema, UpdateArticleSchema } from "./schema";
+import { ARTICLE_STATUSES, CreateArticleSchema, UpdateArticleSchema } from "./schema";
 
 const toArticleDTO = (row: CRUDRow): ArticleDTO => ({
   id: row.id,
-  title: String(row.title),
-  handle: String(row.handle),
-  excerpt: (row.excerpt as string | null) ?? null,
-  body: (row.body as string | null) ?? null,
-  status: row.status as ArticleDTO["status"],
-  created_at: new Date(row.created_at as string),
-  updated_at: new Date(row.updated_at as string),
+  title: text(row.title),
+  handle: text(row.handle),
+  excerpt: textOrNull(row.excerpt),
+  body: textOrNull(row.body),
+  status: oneOf(row.status, ARTICLE_STATUSES, "draft"),
+  created_at: toDate(row.created_at),
+  updated_at: toDate(row.updated_at),
 });
 
 /** CRUD статей для админки — /admin/articles. Handle — slug из заголовка, события `article.*` → редиректы. */

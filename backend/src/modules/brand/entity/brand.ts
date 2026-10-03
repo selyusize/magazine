@@ -8,6 +8,8 @@ export const Brand = model.define("brand", {
   handle: model.text().unique(),
   description: model.text().nullable(),
   is_active: model.boolean().default(true),
+  /** Другие написания из выгрузок поставщиков («Найк», «NIKE Inc.») — импорт находит по ним этот бренд. */
+  synonyms: model.json<string[]>().default([]),
 });
 
 /** Строка таблицы — только внутри модуля, наружу отдаём DTO. */

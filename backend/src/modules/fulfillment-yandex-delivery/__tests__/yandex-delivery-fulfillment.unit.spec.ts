@@ -1,19 +1,11 @@
-import type {
-  CalculateShippingOptionPriceDTO,
-  Logger,
-} from "@medusajs/framework/types";
-
+import type { CalculationContext } from "@shared/service/delivery/carrier-fulfillment";
 import { YandexDeliveryClient } from "@shared/service/yandex-delivery/yandex-delivery-client";
+import { fakeLogger } from "../../../../integration-tests/fakes";
 
 import { YandexDeliveryFulfillmentService } from "../service/yandex-delivery-fulfillment";
 
-type Context = CalculateShippingOptionPriceDTO["context"];
-
-const context = (overrides: Partial<Record<string, unknown>> = {}): Context =>
-  ({
-    id: "cart_1",
+const context = (overrides: Partial<CalculationContext> = {}): CalculationContext => ({
     from_location: {
-      id: "sloc_1",
       name: "Отгрузка",
       address: { city: "Москва", address_1: "Ленинградский проспект, 27" },
       metadata: null,
@@ -30,10 +22,10 @@ const context = (overrides: Partial<Record<string, unknown>> = {}): Context =>
       },
     ],
     ...overrides,
-  }) as unknown as Context;
+  });
 
 describe("YandexDeliveryFulfillmentService", () => {
-  const logger = { warn: jest.fn(), error: jest.fn() } as unknown as Logger;
+  const logger = fakeLogger();
   let service: YandexDeliveryFulfillmentService;
   let calculateTariff: jest.SpiedFunction<
     YandexDeliveryClient["calculateTariff"]

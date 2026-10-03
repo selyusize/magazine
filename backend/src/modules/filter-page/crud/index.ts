@@ -1,25 +1,27 @@
 import { defineCRUD } from "@shared/crud/define-crud";
 import type { CRUDRow } from "@shared/crud/definition";
+import { recordOf, recordOrNull, text, texts, toDate } from "@shared/query/narrow";
 
 import { FILTER_PAGE_MODULE } from "../index";
 import type { FilterPageDTO } from "./dto";
 import { CreateFilterPageSchema, UpdateFilterPageSchema } from "./schema";
 
 const toFilterPageDTO = (row: CRUDRow): FilterPageDTO => {
-  const category = row.product_category as
-    { name: string; handle: string } | null | undefined;
+  const category = recordOrNull(row.product_category);
   return {
     id: row.id,
-    category_id: String(row.category_id),
+    category_id: text(row.category_id),
     category: category
-      ? { name: category.name, handle: category.handle }
+      ? { name: text(category.name), handle: text(category.handle) }
       : null,
-    title: String(row.title),
-    handle: String(row.handle),
-    filters: (row.filters as Record<string, string[]> | null) ?? {},
+    title: text(row.title),
+    handle: text(row.handle),
+    filters: Object.fromEntries(
+      Object.entries(recordOf(row.filters)).map(([key, values]) => [key, texts(values)]),
+    ),
     is_active: Boolean(row.is_active),
-    created_at: new Date(row.created_at as string),
-    updated_at: new Date(row.updated_at as string),
+    created_at: toDate(row.created_at),
+    updated_at: toDate(row.updated_at),
   };
 };
 

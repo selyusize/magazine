@@ -3,6 +3,8 @@ import { MedusaError } from "@medusajs/framework/utils";
 import { AbstractFetcher } from "@shared/query/abstract-fetcher";
 import { Injectable } from "@shared/container";
 
+import { recordOf, recordOrNull, records, text } from "@shared/query/narrow";
+
 import type { ProductCatalogDTO } from "./dto";
 import type { GetCatalogByProductIdQuery } from "./query";
 
@@ -22,23 +24,19 @@ export const PRODUCT_CATALOG_FIELDS = [
   "categories.handle",
 ];
 
-const toNamed = (row: Named | null | undefined): Named | null =>
-  row ? { id: row.id, name: row.name, handle: row.handle } : null;
+const toNamed = (value: unknown): Named | null => {
+  const row = recordOrNull(value);
+  return row ? { id: text(row.id), name: text(row.name), handle: text(row.handle) } : null;
+};
 
 /** Строка товара с полями `PRODUCT_CATALOG_FIELDS` → DTO. */
-export const toProductCatalogDTO = (
-  product: Record<string, unknown> & { id: string },
-): ProductCatalogDTO => {
-  const main = product.product_main_category as
-    { product_category?: Named | null } | null | undefined;
-  const categories = (product.categories ?? []) as (Named | null)[];
+export const toProductCatalogDTO = (value: unknown): ProductCatalogDTO => {
+  const product = recordOf(value);
   return {
-    product_id: product.id,
-    brand: toNamed(product.brand as Named | null | undefined),
-    main_category: toNamed(main?.product_category),
-    categories: categories.flatMap((category) =>
-      category ? [toNamed(category)!] : [],
-    ),
+    product_id: text(product.id),
+    brand: toNamed(product.brand),
+    main_category: toNamed(recordOrNull(product.product_main_category)?.product_category),
+    categories: records(product.categories).flatMap((category) => toNamed(category) ?? []),
   };
 };
 
@@ -59,8 +57,6 @@ export class GetCatalogByProductIdFetcher extends AbstractFetcher<
         MedusaError.Types.NOT_FOUND,
         `Товар ${query.product_id} не найден`,
       );
-    return toProductCatalogDTO(
-      data[0] as Record<string, unknown> & { id: string },
-    );
+    return toProductCatalogDTO(data[0]);
   }
 }

@@ -1,7 +1,7 @@
 import { camelToSnake, type SearchOptionsFacetsItem } from "@shared/api";
 import { z } from "@shared/lib/zod";
 
-/** Какой фасет посчитать: `{ field: "option_values", limit: 200 }`, `{ field: "min_price_eur", type: "stats" }` */
+/** Какой фасет посчитать: `{ field: "option_values", limit: 200 }`, `{ field: "min_price_rub", type: "stats" }` */
 export type SearchFacetRequest = SearchOptionsFacetsItem;
 
 /** Значение фасета и сколько товаров выдачи его имеют */
@@ -10,7 +10,7 @@ export type FacetValue = { value: string; count: number };
 /** Фасет индекса: значения со счётчиками или границы числового поля */
 export type ProductFacet = { type: "value"; values: FacetValue[] } | { type: "stats"; min: number; max: number };
 
-/** Фасеты выдачи по полю индекса: `option_values`, `min_price_eur` */
+/** Фасеты выдачи по полю индекса: `option_values`, `min_price_rub` */
 export type ProductFacets = Record<string, ProductFacet>;
 
 const facetSchema = z.discriminatedUnion("type", [

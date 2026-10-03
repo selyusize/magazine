@@ -1,6 +1,9 @@
 import type { CRUDResource } from "../crud/types";
 
-/** Поставщики — /admin/suppliers. Страницы на витрине нет; склад поставщика создаётся сам. */
+/**
+ * Поставщики — /admin/suppliers. Страницы на витрине нет; склад поставщика создаётся сам. Настройки обмена и
+ * наценка — на странице «Импорт» (`routes/exchange`): форма здесь их не отправляет и не затирает.
+ */
 export const suppliersResource: CRUDResource = {
   path: "/admin/suppliers",
   response: { one: "supplier", many: "suppliers" },
@@ -23,7 +26,5 @@ export const suppliersResource: CRUDResource = {
     { name: "email", type: "text", nullable: true },
     { name: "order_email", type: "text", nullable: true },
     { name: "order_api_url", type: "text", nullable: true },
-    { name: "exchange", type: "json" },
-    { name: "markup", type: "json" },
   ],
 };

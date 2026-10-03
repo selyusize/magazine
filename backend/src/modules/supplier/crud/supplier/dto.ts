@@ -10,7 +10,8 @@ export type SupplierDTO = {
   ship_address: string | null;
   assembly_days: number;
   is_active: boolean;
-  exchange: { readonly [key: string]: string | number | boolean | null };
+  /** Настройки обмена CommerceML (`schema.ts`, `ExchangeSchema`). */
+  exchange: { readonly [key: string]: string | number | boolean | null | readonly string[] };
   markup: { readonly [key: string]: string | number | boolean | null };
   /** Виртуальный склад поставщика; `null` — подписчик ещё не создал его. */
   stock_location_id: string | null;

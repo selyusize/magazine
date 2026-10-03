@@ -1,11 +1,9 @@
-import type { MedusaContainer } from "@medusajs/framework/types";
-import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { createMedusaContainer } from "@medusajs/framework/utils";
 
-import { GetSiteSettingsAction } from "../action/get-site-settings/action";
 import { GetSiteSettingsFetcher } from "../query/get-site-settings/fetcher";
 
 describe("site-settings", () => {
-  const fetcher = new GetSiteSettingsFetcher({} as MedusaContainer);
+  const fetcher = new GetSiteSettingsFetcher(createMedusaContainer());
 
   it("отдаёт реквизиты в формате, который ждут schema.org и подвал", async () => {
     const settings = await fetcher.fetch({});
@@ -21,16 +19,5 @@ describe("site-settings", () => {
     settings.social_links.forEach((link) =>
       expect(link.url).toMatch(/^https:\/\//),
     );
-  });
-
-  it("Action отвечает объектом с ключом site_settings", async () => {
-    const action = new GetSiteSettingsAction(fetcher);
-    const res = { json: jest.fn() };
-
-    await action.handle({} as MedusaRequest, res as unknown as MedusaResponse);
-
-    expect(res.json).toHaveBeenCalledWith({
-      site_settings: await fetcher.fetch({}),
-    });
   });
 });

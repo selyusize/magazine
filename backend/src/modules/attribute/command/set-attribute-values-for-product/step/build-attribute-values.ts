@@ -4,10 +4,7 @@ import {
 } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
-import {
-  type AttributeType,
-  normalizeAttributeValue,
-} from "../../../service/attribute-value";
+import { normalizeAttributeValue, toAttributeRef } from "../../../service/attribute-value";
 import type { SetAttributeValuesForProductCommand } from "../command";
 
 export type AttributeValueRow = {
@@ -57,12 +54,7 @@ export const buildAttributeValuesStep = createStep(
           filters: { id: attributeIds },
         })
       : { data: [] };
-    const byId = new Map(
-      attributes.map((attribute) => [
-        attribute.id as string,
-        attribute as { id: string; name: string; type: AttributeType },
-      ]),
-    );
+    const byId = new Map(attributes.map(toAttributeRef).map((attribute) => [attribute.id, attribute]));
     const missing = attributeIds.find((id) => !byId.has(id));
     if (missing)
       throw new MedusaError(

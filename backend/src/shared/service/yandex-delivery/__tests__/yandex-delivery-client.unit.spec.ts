@@ -1,4 +1,4 @@
-import type { Logger } from "@medusajs/framework/types";
+import { fakeLogger } from "../../../../../integration-tests/fakes";
 
 import {
   formatSchedule,
@@ -14,7 +14,7 @@ const json = (body: unknown, status = 200) =>
 const time = (hours: number, minutes = 0) => ({ hours, minutes });
 
 describe("YandexDeliveryClient", () => {
-  const logger = { warn: jest.fn(), error: jest.fn() } as unknown as Logger;
+  const logger = fakeLogger();
   let fetchMock: jest.SpiedFunction<typeof fetch>;
   const client = new YandexDeliveryClient(
     { base_url: "https://b2b.taxi.tst.yandex.net", token: "y2_test" },
@@ -38,8 +38,7 @@ describe("YandexDeliveryClient", () => {
     await expect(client.findGeoId("Москва")).resolves.toBe(213);
     expect(sentBody()).toEqual({ location: "Москва" });
     expect(
-      (fetchMock.mock.calls[0][1]?.headers as Record<string, string>)
-        .authorization,
+      new Headers(fetchMock.mock.calls[0][1]?.headers).get("authorization"),
     ).toBe("Bearer y2_test");
   });
 

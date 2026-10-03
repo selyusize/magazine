@@ -1,21 +1,35 @@
 import { getProducts } from "@shared/api";
 
+/**
+ * Запас варианта, с которым тесты могут спокойно менять количество в корзине.
+ * Склад приходит из предложений поставщика (в демо-сиде — случайный), поэтому вариант
+ * без запаса Medusa в корзину не пустит.
+ */
+const MIN_STOCK = 5;
+
 let variantId: string | undefined;
 
-/** id варианта товара из каталога Medusa (любого магазина: берётся первый доступный). */
+/** id вариантов товаров с запасом не меньше MIN_STOCK (любого магазина: первые подходящие). */
+async function stockedVariantIds(): Promise<string[]> {
+  const { products } = await getProducts({ limit: 50, fields: "id,*variants,+variants.inventory_quantity" });
+  return products
+    .flatMap((product) => product.variants ?? [])
+    .filter((variant) => (variant.inventoryQuantity ?? 0) >= MIN_STOCK)
+    .map((variant) => variant.id);
+}
+
+/** id варианта товара из каталога Medusa с достаточным запасом. */
 export async function anyVariantId(): Promise<string> {
   if (variantId) return variantId;
-  const { products } = await getProducts({ limit: 20, fields: "id,*variants" });
-  const variant = products.flatMap((product) => product.variants ?? []).find(Boolean);
-  if (!variant) throw new Error("В каталоге Medusa нет ни одного варианта товара — выполните сид (pnpm seed в backend)");
-  variantId = variant.id;
+  const [id] = await stockedVariantIds();
+  if (!id) throw new Error(`В каталоге Medusa нет вариантов с запасом от ${MIN_STOCK} шт. — выполните сид (pnpm seed в backend)`);
+  variantId = id;
   return variantId;
 }
 
 export async function variantIds(count: number): Promise<string[]> {
-  const { products } = await getProducts({ limit: 20, fields: "id,*variants" });
-  const ids = products.flatMap((product) => product.variants ?? []).map((variant) => variant.id);
-  if (ids.length < count) throw new Error(`Нужно ${count} варианта(ов) товара, в каталоге ${ids.length}`);
+  const ids = await stockedVariantIds();
+  if (ids.length < count) throw new Error(`Нужно ${count} варианта(ов) товара с запасом от ${MIN_STOCK} шт., в каталоге ${ids.length}`);
   return ids.slice(0, count);
 }
 

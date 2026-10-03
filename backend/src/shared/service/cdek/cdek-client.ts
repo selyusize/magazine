@@ -1,7 +1,10 @@
 import type { Logger } from "@medusajs/framework/types";
 import { MedusaError } from "@medusajs/framework/utils";
+import { z } from "@medusajs/framework/zod";
 
+import { oneOfOrNull } from "../../query/narrow";
 import type { Parcel } from "../delivery/parcel";
+import { errorMessage } from "../error/error-message";
 
 export type CDEKOptions = {
   /** `https://api.cdek.ru` — рабочий контур, `https://api.edu.cdek.ru` — тестовый. */
@@ -35,7 +38,27 @@ export type CDEKPickupPoint = {
   phone: string | null;
 };
 
-type CDEKError = { code: string; message: string };
+const PICKUP_POINT_TYPES = ["PVZ", "POSTAMAT"] as const;
+
+/** Ответы API, которые читает клиент: всё лишнее отбрасывается, не то — понятная ошибка, а не падение дальше. */
+const TokenSchema = z.object({ access_token: z.string().optional(), expires_in: z.number().optional() });
+const CitiesSchema = z.array(z.object({ code: z.number(), full_name: z.string() }));
+const TariffSchema = z.object({ total_sum: z.number(), period_min: z.number(), period_max: z.number() });
+const PickupPointSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+  type: z.string(),
+  work_time: z.string().optional(),
+  phones: z.array(z.object({ number: z.string() })).optional(),
+  location: z.object({
+    city: z.string(),
+    postal_code: z.string().optional(),
+    address: z.string(),
+    latitude: z.number(),
+    longitude: z.number(),
+  }),
+});
+const ErrorsSchema = z.object({ errors: z.array(z.object({ message: z.string() })).optional() });
 
 /** Запас до истечения токена: не отправлять запрос с токеном, который умрёт по дороге. */
 const TOKEN_MARGIN_MS = 60_000;
@@ -54,13 +77,9 @@ export class CDEKClient {
 
   /** Город по названию (`Москва`) — код города нужен калькулятору и списку ПВЗ. */
   async findCity(name: string): Promise<CDEKCity | null> {
-    const cities = await this.request<{ code: number; full_name: string }[]>(
-      "GET",
-      "/v2/location/suggest/cities",
-      {
-        query: { name: name.trim(), country_code: "RU" },
-      },
-    );
+    const cities = await this.request("GET", "/v2/location/suggest/cities", CitiesSchema, {
+      query: { name: name.trim(), country_code: "RU" },
+    });
     const normalized = name.trim().toLowerCase();
     const city =
       cities.find((item) =>
@@ -79,11 +98,7 @@ export class CDEKClient {
     to_address?: string;
     parcel: Parcel;
   }): Promise<CDEKTariff> {
-    const result = await this.request<{
-      total_sum: number;
-      period_min: number;
-      period_max: number;
-    }>("POST", "/v2/calculator/tariff", {
+    const result = await this.request("POST", "/v2/calculator/tariff", TariffSchema, {
       body: {
         tariff_code: input.tariff_code,
         from_location: { code: input.from_city_code },
@@ -109,16 +124,10 @@ export class CDEKClient {
   }
 
   async listPickupPoints(cityCode: number): Promise<CDEKPickupPoint[]> {
-    const points = await this.request<RawPickupPoint[]>(
-      "GET",
-      "/v2/deliverypoints",
-      {
-        query: { city_code: String(cityCode), is_handout: "true" },
-      },
-    );
-    return points
-      .filter((point) => point.type === "PVZ" || point.type === "POSTAMAT")
-      .map(toPickupPoint);
+    const points = await this.request("GET", "/v2/deliverypoints", z.array(PickupPointSchema), {
+      query: { city_code: String(cityCode), is_handout: "true" },
+    });
+    return points.flatMap(toPickupPoint);
   }
 
   private async accessToken(): Promise<string> {
@@ -133,10 +142,8 @@ export class CDEKClient {
     }).toString();
 
     const response = await this.send(url, { method: "POST" });
-    const body = (await response.json()) as {
-      access_token?: string;
-      expires_in?: number;
-    };
+    const parsed = TokenSchema.safeParse(await response.json().catch(() => null));
+    const body = parsed.success ? parsed.data : {};
     if (!response.ok || !body.access_token) {
       this.logger.error(
         `delivery/cdek: не удалось получить токен, HTTP ${response.status}`,
@@ -155,11 +162,12 @@ export class CDEKClient {
     return this.token.value;
   }
 
-  private async request<T>(
+  private async request<S extends z.ZodType>(
     method: "GET" | "POST",
     path: string,
+    schema: S,
     { query, body }: { query?: Record<string, string>; body?: unknown },
-  ): Promise<T> {
+  ): Promise<z.infer<S>> {
     const url = new URL(path, this.options.base_url);
     if (query) url.search = new URLSearchParams(query).toString();
 
@@ -172,10 +180,9 @@ export class CDEKClient {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const payload = (await response.json().catch(() => null)) as
-      (T & { errors?: CDEKError[] }) | null;
-    const errors =
-      payload && !Array.isArray(payload) ? payload.errors : undefined;
+    const payload: unknown = await response.json().catch(() => null);
+    const envelope = ErrorsSchema.safeParse(payload);
+    const errors = envelope.success ? envelope.data.errors : undefined;
     if (!response.ok || errors?.length) {
       const message =
         errors?.map((error) => error.message).join("; ") ||
@@ -188,7 +195,12 @@ export class CDEKClient {
         `СДЭК: ${message}`,
       );
     }
-    return payload as T;
+    const parsed = schema.safeParse(payload);
+    if (!parsed.success) {
+      this.logger.warn(`delivery/cdek: ${method} ${path} — неожиданный ответ: ${parsed.error.message}`);
+      throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "СДЭК: неожиданный ответ API");
+    }
+    return parsed.data;
   }
 
   /** Сетевые ошибки (DNS, таймаут) — тоже MedusaError: витрина покажет «доставка недоступна», а не 500 без текста. */
@@ -197,7 +209,7 @@ export class CDEKClient {
       return await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
     } catch (error) {
       this.logger.error(
-        `delivery/cdek: ${url.pathname} недоступен: ${(error as Error).message}`,
+        `delivery/cdek: ${url.pathname} недоступен: ${errorMessage(error)}`,
       );
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
@@ -207,30 +219,22 @@ export class CDEKClient {
   }
 }
 
-type RawPickupPoint = {
-  code: string;
-  name: string;
-  type: string;
-  work_time?: string;
-  phones?: { number: string }[];
-  location: {
-    city: string;
-    postal_code?: string;
-    address: string;
-    latitude: number;
-    longitude: number;
-  };
+/** Пункт выдачи СДЭК; не ПВЗ и не постамат (склад, офис) — пусто. */
+const toPickupPoint = (point: z.infer<typeof PickupPointSchema>): CDEKPickupPoint[] => {
+  const type = oneOfOrNull(point.type, PICKUP_POINT_TYPES);
+  if (!type) return [];
+  return [
+    {
+      code: point.code,
+      name: point.name,
+      type,
+      address: point.location.address,
+      city: point.location.city,
+      postal_code: point.location.postal_code || null,
+      latitude: point.location.latitude,
+      longitude: point.location.longitude,
+      work_time: point.work_time || null,
+      phone: point.phones?.[0]?.number ?? null,
+    },
+  ];
 };
-
-const toPickupPoint = (point: RawPickupPoint): CDEKPickupPoint => ({
-  code: point.code,
-  name: point.name,
-  type: point.type as CDEKPickupPoint["type"],
-  address: point.location.address,
-  city: point.location.city,
-  postal_code: point.location.postal_code || null,
-  latitude: point.location.latitude,
-  longitude: point.location.longitude,
-  work_time: point.work_time || null,
-  phone: point.phones?.[0]?.number ?? null,
-});

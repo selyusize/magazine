@@ -1,21 +1,22 @@
 import { defineCRUD } from "@shared/crud/define-crud";
 import type { CRUDRow } from "@shared/crud/definition";
+import { numberOr, oneOf, text, textOrNull, toDate } from "@shared/query/narrow";
 
 import { ATTRIBUTE_MODULE } from "../index";
 import type { AttributeDTO } from "./dto";
-import { CreateAttributeSchema, UpdateAttributeSchema } from "./schema";
+import { ATTRIBUTE_TYPES, CreateAttributeSchema, UpdateAttributeSchema } from "./schema";
 
 const toAttributeDTO = (row: CRUDRow): AttributeDTO => ({
   id: row.id,
-  name: String(row.name),
-  handle: String(row.handle),
-  type: row.type as AttributeDTO["type"],
-  unit: (row.unit as string | null) ?? null,
+  name: text(row.name),
+  handle: text(row.handle),
+  type: oneOf(row.type, ATTRIBUTE_TYPES, "string"),
+  unit: textOrNull(row.unit),
   is_filterable: Boolean(row.is_filterable),
   is_visible: Boolean(row.is_visible),
-  rank: Number(row.rank),
-  created_at: new Date(row.created_at as string),
-  updated_at: new Date(row.updated_at as string),
+  rank: numberOr(row.rank),
+  created_at: toDate(row.created_at),
+  updated_at: toDate(row.updated_at),
 });
 
 /**

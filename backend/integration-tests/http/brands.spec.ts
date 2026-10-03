@@ -1,4 +1,8 @@
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { createProductsWorkflow } from "@medusajs/medusa/core-flows";
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
+
+import productBrandLink from "../../src/links/product-brand";
 
 import { adminHeaders, storeHeaders, waitFor } from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
@@ -158,6 +162,46 @@ medusaIntegrationTestRunner({
         api.delete(`/admin/brands/${data.brand.id}`, { headers: admin }),
       );
       expect(missing.status).toBe(404);
+    });
+
+    it("удаление бренда снимает его связь с товарами — строка связи не остаётся", async () => {
+      const { data } = await create({ name: "Kappa" });
+      const {
+        result: [product],
+      } = await createProductsWorkflow(getContainer()).run({
+        input: {
+          products: [{ title: "Кеды", status: "draft", options: [{ title: "Размер", values: ["M"] }] }],
+        },
+      });
+      await api.post(
+        `/admin/products/${product.id}/catalog`,
+        { brand_id: data.brand.id },
+        { headers: admin },
+      );
+
+      const links = async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY);
+        const { data: rows } = await query.graph({
+          entity: productBrandLink.entryPoint,
+          fields: ["product_id", "brand_id", "deleted_at"],
+          filters: { brand_id: data.brand.id },
+          withDeleted: true,
+        });
+        return rows as { product_id: string; deleted_at: string | null }[];
+      };
+      expect(await links()).toEqual([
+        expect.objectContaining({ product_id: product.id, deleted_at: null }),
+      ]);
+
+      await api.delete(`/admin/brands/${data.brand.id}`, { headers: admin });
+
+      expect(await links()).toEqual([
+        expect.objectContaining({ product_id: product.id, deleted_at: expect.anything() }),
+      ]);
+      const catalog = await api.get(`/admin/products/${product.id}/catalog`, {
+        headers: admin,
+      });
+      expect(catalog.data.catalog.brand).toBeNull();
     });
   },
 });

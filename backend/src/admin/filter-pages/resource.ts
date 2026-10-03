@@ -1,3 +1,4 @@
+import { isRecord } from "../lib/narrow";
 import type { CRUDResource } from "../crud/types";
 
 /** Посадочные «категория + фильтры» — /admin/filter-pages. Адрес на витрине: /catalog/{категория}/{handle}. */
@@ -20,7 +21,7 @@ export const filterPagesResource: CRUDResource = {
     { name: "is_active", type: "boolean", default: true },
   ],
   storefrontPath: (row) => {
-    const category = row.category as { handle: string } | null;
-    return category ? `/catalog/${category.handle}/${row.handle}` : null;
+    const category = isRecord(row.category) ? row.category : null;
+    return category && typeof category.handle === "string" ? `/catalog/${category.handle}/${row.handle}` : null;
   },
 };

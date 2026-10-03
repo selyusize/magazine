@@ -1,6 +1,9 @@
 /** Строка CRUD-ресурса, как её отдаёт Admin API (`src/shared/crud` на бэкенде). */
 export type CRUDRow = { id: string } & Record<string, unknown>;
 
+export const isCRUDRow = (value: unknown): value is CRUDRow =>
+  typeof value === "object" && value !== null && "id" in value && typeof value.id === "string";
+
 /** Поле формы: что рисовать и как превратить значение в тело запроса. */
 export type CRUDField =
   | {

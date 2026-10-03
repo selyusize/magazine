@@ -41,7 +41,7 @@ async function getRegionId(): Promise<string | undefined> {
   return env.regionId || (await getRegion())?.id;
 }
 
-/** Валюта цен витрины: `eur`, `rub`. Нужна, чтобы выбрать ценовые поля поискового индекса */
+/** Валюта цен витрины: `rub`. Нужна, чтобы выбрать ценовые поля поискового индекса */
 export async function getStoreCurrency(): Promise<string | undefined> {
   return (await getRegion())?.currencyCode;
 }
@@ -78,7 +78,7 @@ export type ProductSearchParams = {
   filters?: Record<string, unknown>[];
   /** Сортировка из конфига: `-created_at`, `title` */
   order?: string;
-  /** Какие фасеты посчитать: `"option_values"`, `{ field: "min_price_eur", type: "stats" }` */
+  /** Какие фасеты посчитать: `"option_values"`, `{ field: "min_price_rub", type: "stats" }` */
   facets?: SearchFacetRequest[];
   limit: number;
   offset?: number;

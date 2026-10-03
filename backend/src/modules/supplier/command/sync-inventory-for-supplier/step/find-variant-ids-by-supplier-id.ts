@@ -15,7 +15,7 @@ export const findVariantIdsBySupplierIdStep = createStep(
       withDeleted: true,
     });
     return new StepResponse([
-      ...new Set(data.map((offer) => offer.variant_id as string)),
+      ...new Set(data.map((offer) => offer.variant_id)),
     ]);
   },
 );

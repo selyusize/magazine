@@ -13,3 +13,9 @@ process.env.CDEK_CLIENT_ID = "test"
 process.env.CDEK_CLIENT_SECRET = "test"
 process.env.YANDEX_DELIVERY_BASE_URL = "https://yandex-delivery.invalid"
 process.env.YANDEX_DELIVERY_TOKEN = "test"
+
+// Пакеты обмена и логи импорта тестов — во временной папке, не в backend/exchange и backend/logs
+const os = require("node:os");
+const path = require("node:path");
+process.env.EXCHANGE_DIR = path.join(os.tmpdir(), "magazine-tests", "exchange");
+process.env.LOGS_DIR = path.join(os.tmpdir(), "magazine-tests", "logs");

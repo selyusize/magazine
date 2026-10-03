@@ -3,13 +3,61 @@ import type {
   SearchTypes,
 } from "@medusajs/framework/types";
 
+import { isString, recordOrNull, records } from "@shared/query/narrow";
+
 const RESOLVE_BATCH_SIZE = 200;
+
+/** Из контекста индексации нужен только Query: `SearchTypes.SearchIngestionContext` подходит. */
+type ResolveContext = { container: { query: Pick<RemoteQueryFunction, "graph" | "search"> } };
+
+/** A row read back from `query.graph`: only the path to the product ids matters. */
+type Row = Record<string, unknown>;
+
+type RelatedEntity = {
+  entity: string;
+  fields: string[];
+  pick: (row: Row) => unknown[];
+};
+
+const idsOf = (items: unknown): unknown[] => records(items).map((item) => item.id);
+
+/**
+ * Since Medusa 2.16 options are shared between products (`product_option.products`,
+ * many-to-many): an option has no `product_id`, and one option leads to many products.
+ */
+const RELATED_ENTITIES: Record<string, RelatedEntity> = {
+  "product-variant": {
+    entity: "product_variant",
+    fields: ["product_id"],
+    pick: (row) => [row.product_id],
+  },
+  "product-option": {
+    entity: "product_option",
+    fields: ["products.id"],
+    pick: (row) => idsOf(row.products),
+  },
+  "product-option-value": {
+    entity: "product_option_value",
+    fields: ["option.products.id"],
+    pick: (row) => idsOf(recordOrNull(row.option)?.products),
+  },
+  "product-tag": {
+    entity: "product_tag",
+    fields: ["products.id"],
+    pick: (row) => idsOf(row.products),
+  },
+  "product-category": {
+    entity: "product_category",
+    fields: ["products.id"],
+    pick: (row) => idsOf(row.products),
+  },
+};
 
 // Core emits either a single `{ id }` or a batch of them.
 function payloadIds(data: unknown): string[] {
-  return (Array.isArray(data) ? data : [data])
-    .map((entry) => (entry as { id?: string } | undefined)?.id)
-    .filter((id): id is string => Boolean(id));
+  return records(Array.isArray(data) ? data : [data])
+    .map((entry) => entry.id)
+    .filter((id): id is string => isString(id) && id.length > 0);
 }
 
 /**
@@ -18,11 +66,9 @@ function payloadIds(data: unknown): string[] {
  * which is how a deleted variant or category still leads back to its products.
  */
 async function relatedProductIds(
-  query: RemoteQueryFunction,
-  entity: string,
-  fields: string[],
+  query: Pick<RemoteQueryFunction, "graph" | "search">,
+  { entity, fields, pick }: RelatedEntity,
   ids: string[],
-  pick: (row: Record<string, any>) => (string | null | undefined)[],
   withDeleted: boolean,
 ): Promise<string[]> {
   const { data } = await query.graph({
@@ -32,9 +78,11 @@ async function relatedProductIds(
     withDeleted,
   });
 
-  return (data as Record<string, any>[])
+  const productIds = records(data)
     .flatMap(pick)
-    .filter((id): id is string => Boolean(id));
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+
+  return Array.from(new Set(productIds));
 }
 
 /**
@@ -43,7 +91,7 @@ async function relatedProductIds(
  * each document, which is what's searched here.
  */
 async function productIdsInSalesChannels(
-  query: RemoteQueryFunction,
+  query: Pick<RemoteQueryFunction, "graph" | "search">,
   salesChannelIds: string[],
 ): Promise<string[]> {
   const ids: string[] = [];
@@ -74,7 +122,7 @@ async function productIdsInSalesChannels(
  */
 export async function resolveProductIds(
   event: { name: string; data: unknown },
-  { container: { query } }: SearchTypes.SearchIngestionContext,
+  { container: { query } }: ResolveContext,
 ): Promise<string[]> {
   const ids = payloadIds(event.data);
 
@@ -83,59 +131,18 @@ export async function resolveProductIds(
   }
 
   const [entity] = event.name.split(".");
-  const deleted = event.name.endsWith(".deleted");
 
-  switch (entity) {
-    case "product":
-      return ids;
-    case "product-variant":
-      return relatedProductIds(
-        query,
-        "product_variant",
-        ["product_id"],
-        ids,
-        (row) => [row.product_id],
-        deleted,
-      );
-    case "product-option":
-      return relatedProductIds(
-        query,
-        "product_option",
-        ["product_id"],
-        ids,
-        (row) => [row.product_id],
-        deleted,
-      );
-    case "product-option-value":
-      return relatedProductIds(
-        query,
-        "product_option_value",
-        ["option.product_id"],
-        ids,
-        (row) => [row.option?.product_id],
-        deleted,
-      );
-    case "product-tag":
-      return relatedProductIds(
-        query,
-        "product_tag",
-        ["products.id"],
-        ids,
-        (row) => (row.products ?? []).map((product: any) => product?.id),
-        deleted,
-      );
-    case "product-category":
-      return relatedProductIds(
-        query,
-        "product_category",
-        ["products.id"],
-        ids,
-        (row) => (row.products ?? []).map((product: any) => product?.id),
-        deleted,
-      );
-    case "sales-channel":
-      return productIdsInSalesChannels(query, ids);
-    default:
-      return [];
+  if (entity === "product") {
+    return ids;
   }
+
+  if (entity === "sales-channel") {
+    return productIdsInSalesChannels(query, ids);
+  }
+
+  const related = RELATED_ENTITIES[entity];
+
+  return related
+    ? relatedProductIds(query, related, ids, event.name.endsWith(".deleted"))
+    : [];
 }

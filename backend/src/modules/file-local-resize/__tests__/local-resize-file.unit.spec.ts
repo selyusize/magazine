@@ -2,21 +2,21 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { Logger } from "@medusajs/framework/types";
 import sharp from "sharp";
 
+import { fakeLogger } from "../../../../integration-tests/fakes";
 import { LocalResizeFileService } from "../service/local-resize-file";
 
 describe("LocalResizeFileService", () => {
   let dir: string;
-  let logger: jest.Mocked<Pick<Logger, "warn">>;
+  let logger: ReturnType<typeof fakeLogger>;
   let service: LocalResizeFileService;
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "file-local-resize-"));
-    logger = { warn: jest.fn() };
+    logger = fakeLogger();
     service = new LocalResizeFileService(
-      { logger: logger as unknown as Logger },
+      { logger },
       {
         upload_dir: dir,
         private_upload_dir: dir,

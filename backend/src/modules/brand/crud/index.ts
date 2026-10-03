@@ -1,5 +1,6 @@
 import { defineCRUD } from "@shared/crud/define-crud";
 import type { CRUDRow } from "@shared/crud/definition";
+import { text, textOrNull, texts, toDate } from "@shared/query/narrow";
 
 import { BRAND_MODULE } from "../index";
 import type { BrandDTO } from "./dto";
@@ -7,12 +8,13 @@ import { CreateBrandSchema, UpdateBrandSchema } from "./schema";
 
 const toBrandDTO = (row: CRUDRow): BrandDTO => ({
   id: row.id,
-  name: String(row.name),
-  handle: String(row.handle),
-  description: (row.description as string | null) ?? null,
+  name: text(row.name),
+  handle: text(row.handle),
+  description: textOrNull(row.description),
   is_active: Boolean(row.is_active),
-  created_at: new Date(row.created_at as string),
-  updated_at: new Date(row.updated_at as string),
+  synonyms: texts(row.synonyms),
+  created_at: toDate(row.created_at),
+  updated_at: toDate(row.updated_at),
 });
 
 /** CRUD брендов для админки — /admin/brands. Handle — slug из названия, события `brand.*` → редиректы. */
@@ -28,6 +30,7 @@ export const brandCRUD = defineCRUD<BrandDTO>({
     "handle",
     "description",
     "is_active",
+    "synonyms",
     "created_at",
     "updated_at",
   ],

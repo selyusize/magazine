@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { PAGE_SIZE } from "../hooks/use-crud-page";
 import type { CRUDColumn, CRUDResource, CRUDRow } from "../types";
+import { isRecord } from "../../lib/narrow";
 
 type CRUDTableProps = {
   resource: CRUDResource;
@@ -23,7 +24,7 @@ const valueAt = (row: CRUDRow, key: string): unknown =>
   key
     .split(".")
     .reduce<unknown>(
-      (value, part) => (value as Record<string, unknown> | null)?.[part],
+      (value, part) => (isRecord(value) ? value[part] : undefined),
       row,
     );
 

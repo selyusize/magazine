@@ -1,9 +1,4 @@
-import type {
-  CalculateShippingOptionPriceDTO,
-  CreateFulfillmentResult,
-  FulfillmentOption,
-  StockLocationAddressDTO,
-} from "@medusajs/framework/types";
+import type { CreateFulfillmentResult, FulfillmentOption } from "@medusajs/framework/types";
 import {
   AbstractFulfillmentProviderService,
   MedusaError,
@@ -18,7 +13,37 @@ export type CarrierOption = FulfillmentOption & {
   pickup: boolean;
 };
 
-export type CalculationContext = CalculateShippingOptionPriceDTO["context"];
+/** Адрес склада или покупателя — нужные перевозчику поля. */
+type Address = {
+  city?: string | null;
+  address_1?: string | null;
+  address_2?: string | null;
+  postal_code?: string | null;
+};
+
+/**
+ * Что перевозчику нужно из контекста расчёта Medusa (`CalculateShippingOptionPriceDTO["context"]` ему подходит):
+ * склад отгрузки, адрес покупателя и товары. Узкий тип — провайдер не зависит от всей корзины.
+ */
+export type CalculationContext = {
+  from_location?: { name?: string | null; metadata?: Record<string, unknown> | null; address?: Address | null } | null;
+  shipping_address?: Address | null;
+  items?:
+    | {
+        quantity: unknown;
+        unit_price: unknown;
+        variant?: {
+          weight?: number | null;
+          length?: number | null;
+          width?: number | null;
+          height?: number | null;
+        } | null;
+      }[]
+    | null;
+};
+
+/** Адрес склада отгрузки с обязательным городом. */
+export type OriginAddress = { city: string; address_1: string | null; address_2: string | null };
 
 /** Адрес покупателя: витрина заполняет его до выбора способа доставки. */
 export type DestinationAddress = {
@@ -123,9 +148,7 @@ export abstract class CarrierFulfillmentService extends AbstractFulfillmentProvi
   }
 
   /** Откуда везём: адрес склада отгрузки (у поставщика — его виртуальный склад). */
-  protected origin(
-    context: CalculationContext,
-  ): StockLocationAddressDTO & { city: string } {
+  protected origin(context: CalculationContext): OriginAddress {
     const address = context.from_location?.address;
     if (!address?.city) {
       throw new MedusaError(
@@ -133,7 +156,7 @@ export abstract class CarrierFulfillmentService extends AbstractFulfillmentProvi
         `${this.carrierName}: у склада отгрузки «${context.from_location?.name ?? "?"}» не указан город`,
       );
     }
-    return address as StockLocationAddressDTO & { city: string };
+    return { city: address.city, address_1: address.address_1 ?? null, address_2: address.address_2 ?? null };
   }
 
   /** Куда везём: город обязателен всегда, улица — только для курьера. */

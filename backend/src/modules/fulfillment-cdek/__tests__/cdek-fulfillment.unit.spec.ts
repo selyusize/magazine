@@ -1,19 +1,11 @@
-import type {
-  CalculateShippingOptionPriceDTO,
-  Logger,
-} from "@medusajs/framework/types";
-
 import { CDEKClient } from "@shared/service/cdek/cdek-client";
+import type { CalculationContext } from "@shared/service/delivery/carrier-fulfillment";
+import { fakeLogger } from "../../../../integration-tests/fakes";
 
 import { CDEKFulfillmentService } from "../service/cdek-fulfillment";
 
-type Context = CalculateShippingOptionPriceDTO["context"];
-
-const context = (overrides: Partial<Record<string, unknown>> = {}): Context =>
-  ({
-    id: "cart_1",
+const context = (overrides: Partial<CalculationContext> = {}): CalculationContext => ({
     from_location: {
-      id: "sloc_1",
       name: "Отгрузка",
       address: { city: "Москва", address_1: "Ленинградский проспект, 27" },
     },
@@ -31,10 +23,10 @@ const context = (overrides: Partial<Record<string, unknown>> = {}): Context =>
       { quantity: 1, unit_price: 500, variant: { weight: null } },
     ],
     ...overrides,
-  }) as unknown as Context;
+  });
 
 describe("CDEKFulfillmentService", () => {
-  const logger = { warn: jest.fn(), error: jest.fn() } as unknown as Logger;
+  const logger = fakeLogger();
   let service: CDEKFulfillmentService;
   let findCity: jest.SpiedFunction<CDEKClient["findCity"]>;
   let calculateTariff: jest.SpiedFunction<CDEKClient["calculateTariff"]>;

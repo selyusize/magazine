@@ -11,12 +11,13 @@ import {
   acquireLockStep,
   emitEventStep,
   releaseLockStep,
+  removeRemoteLinkStep,
   useQueryGraphStep,
 } from "@medusajs/medusa/core-flows";
 
 import type { Command } from "../contract/command";
 import type { DTO } from "../contract/dto";
-import { type CRUDDefinition, type CRUDRow, repository } from "./definition";
+import { type CRUDDefinition, type CRUDRow, repository, toCRUDRow } from "./definition";
 import { resolveHandle } from "./handle";
 
 /** Вход изменения: id + меняемые поля. */
@@ -32,10 +33,11 @@ export type DeleteEntitiesCommand = { ids: string[] };
 export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
   definition: CRUDDefinition<TDTO>,
 ) {
-  const { entity, label } = definition;
+  const { entity, label, module } = definition;
   const notFound = (id: string) =>
     new MedusaError(MedusaError.Types.NOT_FOUND, `Не найдено: ${label} ${id}`);
   const lockKey = `crud-handle:${entity}`;
+  const removeLinksStepName = `remove-${entity}-links`;
   const events = {
     created: `${entity}.created`,
     updated: `${entity}.updated`,
@@ -103,9 +105,10 @@ export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
       const [current] = await rows.list({ id: data.id });
       if (!current) throw notFound(data.id);
 
-      const previous = Object.fromEntries(
-        Object.keys(data).map((key) => [key, current[key]]),
-      ) as CRUDRow;
+      const previous: CRUDRow = {
+        ...Object.fromEntries(Object.keys(data).map((key) => [key, current[key]])),
+        id: current.id,
+      };
       const row = await rows.update(data);
       return new StepResponse(row, previous);
     },
@@ -137,7 +140,8 @@ export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
   );
 
   /** Ответ — свежая строка из Query с полями описания (как у карточки), включая связи. */
-  const toDTO = ({ data }: { data: unknown[] }) => definition.toDTO(data[0] as CRUDRow);
+  const toDTO = ({ data }: { data: unknown[] }) =>
+    definition.toDTO(toCRUDRow(data[0]));
   const readStep = (id: WorkflowData<string>) =>
     useQueryGraphStep({
       entity,
@@ -166,7 +170,7 @@ export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
       acquireLockStep({ key: lockKey, timeout: 30, ttl: 60 });
       const data = buildHandleStep(
         transform(command, ({ id, ...data }) => ({
-          data: data as Command,
+          data,
           id,
         })),
       );
@@ -193,6 +197,13 @@ export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
     `delete-${entity}`,
     (command: DeleteEntitiesCommand) => {
       const ids = removeStep(command);
+      // Связи с таблицей (product ↔ brand) сами не уходят: Query их уже не отдаёт, но строки остаются.
+      // Мягко удаляем вместе с сущностью, откат — restore. Read-only связи (по полю) таблиц не имеют.
+      removeRemoteLinkStep(
+        transform(ids, (ids) =>
+          ids.length ? [{ [module]: { [`${entity}_id`]: ids } }] : [],
+        ),
+      ).config({ name: removeLinksStepName });
       emitEventStep({
         eventName: events.deleted,
         data: transform(ids, (ids) => ids.map((id) => ({ id }))),

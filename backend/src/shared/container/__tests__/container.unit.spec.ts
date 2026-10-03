@@ -1,4 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types";
+import { createMedusaContainer } from "@medusajs/framework/utils";
 
 import { createContainer, define } from "../container";
 import { Injectable, InjectContainer } from "../injectable";
@@ -40,7 +41,7 @@ class WithPrimitive {
   constructor(readonly name: string) {}
 }
 
-const medusa = { resolve: jest.fn() } as unknown as MedusaContainer;
+const medusa: MedusaContainer = createMedusaContainer();
 
 describe("Container", () => {
   const Container = createContainer([

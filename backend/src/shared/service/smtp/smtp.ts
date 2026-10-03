@@ -1,6 +1,7 @@
 import type { Logger } from "@medusajs/framework/types";
 import { MedusaError } from "@medusajs/framework/utils";
 import nodemailer, { type Transporter } from "nodemailer";
+import { errorMessage } from "@shared/service/error/error-message";
 
 export type SMTPOptions = {
   /** Пусто — письма не отправляются, а пишутся в лог (dev без Mailpit) */
@@ -75,11 +76,11 @@ export class SMTP {
       return info.messageId;
     } catch (error) {
       this.logger.error(
-        `smtp/send: не удалось отправить «${message.subject}» на ${message.to}: ${(error as Error).message}`,
+        `smtp/send: не удалось отправить «${message.subject}» на ${message.to}: ${errorMessage(error)}`,
       );
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
-        `Не удалось отправить письмо: ${(error as Error).message}`,
+        `Не удалось отправить письмо: ${errorMessage(error)}`,
       );
     }
   }

@@ -1,40 +1,30 @@
 import { AbstractFetcher } from "@shared/query/abstract-fetcher";
 import { Injectable } from "@shared/container";
 
+import { dateOrNull, numberOr, numberOrNull, recordOf, recordOrNull, text, textOrNull } from "@shared/query/narrow";
+
 import type { ProductSupplierOfferDTO } from "./dto";
 import type { GetSupplierOffersByProductIdQuery } from "./query";
 
-type OfferRow = {
-  id: string;
-  supplier_id: string;
-  supplier: { name: string; is_active: boolean } | null;
-  variant_id: string;
-  external_id: string;
-  sku: string | null;
-  barcode: string | null;
-  purchase_price: number | string | null;
-  quantity: number;
-  synced_at: string | Date | null;
+const toProductSupplierOfferDTO = (value: unknown, variantTitles: Map<string, string>): ProductSupplierOfferDTO => {
+  const offer = recordOf(value);
+  const supplier = recordOrNull(offer.supplier);
+  const variantId = text(offer.variant_id);
+  return {
+    id: text(offer.id),
+    supplier_id: text(offer.supplier_id),
+    supplier_name: textOrNull(supplier?.name) ?? "—",
+    supplier_is_active: supplier?.is_active === true,
+    variant_id: variantId,
+    variant_title: variantTitles.get(variantId) ?? variantId,
+    external_id: text(offer.external_id),
+    sku: textOrNull(offer.sku),
+    barcode: textOrNull(offer.barcode),
+    purchase_price: numberOrNull(offer.purchase_price),
+    quantity: numberOr(offer.quantity),
+    synced_at: dateOrNull(offer.synced_at),
+  };
 };
-
-const toProductSupplierOfferDTO = (
-  offer: OfferRow,
-  variantTitles: Map<string, string>,
-): ProductSupplierOfferDTO => ({
-  id: offer.id,
-  supplier_id: offer.supplier_id,
-  supplier_name: offer.supplier?.name ?? "—",
-  supplier_is_active: offer.supplier?.is_active ?? false,
-  variant_id: offer.variant_id,
-  variant_title: variantTitles.get(offer.variant_id) ?? offer.variant_id,
-  external_id: offer.external_id,
-  sku: offer.sku ?? null,
-  barcode: offer.barcode ?? null,
-  purchase_price:
-    offer.purchase_price === null ? null : Number(offer.purchase_price),
-  quantity: Number(offer.quantity),
-  synced_at: offer.synced_at ? new Date(offer.synced_at) : null,
-});
 
 /** Предложения всех вариантов товара — блок «Поставщики» в карточке товара. Нет предложений — пустой список. */
 @Injectable()
@@ -73,7 +63,7 @@ export class GetSupplierOffersByProductIdFetcher extends AbstractFetcher<
     const titles = new Map<string, string>(
       variants.map((variant) => [variant.id, variant.title ?? variant.id]),
     );
-    return (offers as OfferRow[]).map((offer) =>
+    return offers.map((offer) =>
       toProductSupplierOfferDTO(offer, titles),
     );
   }

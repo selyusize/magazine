@@ -2,20 +2,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { Logger as MedusaLogger } from "@medusajs/framework/types";
-
+import { fakeLogger } from "../../../../../integration-tests/fakes";
 import { Logger } from "../logger";
-
-function medusaLoggerMock(): jest.Mocked<
-  Pick<MedusaLogger, "debug" | "info" | "warn" | "error">
-> {
-  return {
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  };
-}
 
 describe("Logger", () => {
   let dir: string;
@@ -29,8 +17,8 @@ describe("Logger", () => {
   });
 
   it("пишет в stdout через логгер Medusa и добавляет данные к сообщению", () => {
-    const medusa = medusaLoggerMock();
-    const logger = new Logger({ dir }, medusa as unknown as MedusaLogger);
+    const medusa = fakeLogger();
+    const logger = new Logger({ dir }, medusa);
 
     logger.info("import/run: старт", { supplier: "acme" });
 
@@ -40,8 +28,8 @@ describe("Logger", () => {
   });
 
   it("toFile создаёт папку и пишет строки JSON в <dir>/<name>.log по порядку", async () => {
-    const medusa = medusaLoggerMock();
-    const file = new Logger({ dir }, medusa as unknown as MedusaLogger).toFile(
+    const medusa = fakeLogger();
+    const file = new Logger({ dir }, medusa).toFile(
       "import-acme",
     );
 
@@ -63,7 +51,7 @@ describe("Logger", () => {
   it("не принимает имя файла с путём", () => {
     const logger = new Logger(
       { dir },
-      medusaLoggerMock() as unknown as MedusaLogger,
+      fakeLogger(),
     );
 
     expect(() => logger.toFile("../etc/passwd")).toThrow(

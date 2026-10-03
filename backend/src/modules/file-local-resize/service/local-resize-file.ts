@@ -12,6 +12,7 @@ import {
   ImageResizer,
   type ImageResizerOptions,
 } from "@shared/service/image/image-resizer";
+import { errorMessage } from "@shared/service/error/error-message";
 
 export type LocalResizeFileServiceOptions = LocalFileServiceOptions & {
   image: ImageResizerOptions;
@@ -88,7 +89,7 @@ export class LocalResizeFileService extends LocalFileService {
       );
     } catch (error) {
       this.logger.warn(
-        `file-local-resize/upload: не удалось сделать копии ${key}: ${(error as Error).message}`,
+        `file-local-resize/upload: не удалось сделать копии ${key}: ${errorMessage(error)}`,
       );
     }
   }

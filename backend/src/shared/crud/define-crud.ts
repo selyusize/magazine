@@ -14,7 +14,7 @@ import type { Action } from "../contract/action";
 import type { Command } from "../contract/command";
 import type { DTO } from "../contract/dto";
 import { AbstractFetcher } from "../query/abstract-fetcher";
-import type { CRUDDefinition, CRUDRow } from "./definition";
+import { type CRUDDefinition, toCRUDRows } from "./definition";
 import {
   createCRUDWorkflows,
   type DeleteEntitiesCommand,
@@ -105,7 +105,7 @@ export function defineCRUD<TDTO extends DTO & { id: string }>(
         },
       });
       return {
-        rows: (data as CRUDRow[]).map(definition.toDTO),
+        rows: toCRUDRows(data).map(definition.toDTO),
         count: metadata?.count ?? data.length,
       };
     }
@@ -119,7 +119,7 @@ export function defineCRUD<TDTO extends DTO & { id: string }>(
         fields: definition.fields,
         filters: { id: query.id },
       });
-      const row = data[0] as CRUDRow | undefined;
+      const [row] = toCRUDRows(data);
       if (!row)
         throw new MedusaError(
           MedusaError.Types.NOT_FOUND,

@@ -1,11 +1,7 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
-import {
-  URL_ENTITIES,
-  type URLEntityRow,
-  type URLEntityType,
-} from "../service/path";
+import { toURLEntityRows, URL_ENTITIES, type URLEntityType } from "../service/path";
 import type { EntityPathInput } from "../service/redirect-module-service";
 
 /** Общий шаг команд модуля, только чтение: текущие пути сущностей по фильтру (посадочные одной категории). */
@@ -23,7 +19,7 @@ export const findEntityPathsStep = createStep(
       filters: input.filters,
     });
 
-    const paths = (data as URLEntityRow[]).flatMap((row): EntityPathInput[] => {
+    const paths = toURLEntityRows(data).flatMap((row): EntityPathInput[] => {
       const path = config.toPath(row);
       return path
         ? [{ entity_type: input.entity_type, entity_id: row.id, path }]

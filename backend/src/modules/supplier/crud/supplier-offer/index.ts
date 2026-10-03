@@ -1,42 +1,34 @@
 import { defineCRUD } from "@shared/crud/define-crud";
 import type { CRUDRow } from "@shared/crud/definition";
+import { dateOrNull, numberOr, numberOrNull, recordOrNull, text, textOrNull, toDate } from "@shared/query/narrow";
 
 import { SUPPLIER_MODULE } from "../../index";
 import type { SupplierOfferDTO } from "./dto";
 import { CreateSupplierOfferSchema, UpdateSupplierOfferSchema } from "./schema";
 
-const nullable = (value: unknown): string | null =>
-  typeof value === "string" ? value : null;
-
 const toSupplierOfferDTO = (row: CRUDRow): SupplierOfferDTO => {
-  const supplier = row.supplier as { name: string } | null | undefined;
-  const variant = row.product_variant as
-    | { title: string; sku: string | null; product_id: string }
-    | null
-    | undefined;
+  const supplier = recordOrNull(row.supplier);
+  const variant = recordOrNull(row.product_variant);
   return {
     id: row.id,
-    supplier_id: String(row.supplier_id),
-    supplier: supplier ? { name: supplier.name } : null,
-    variant_id: String(row.variant_id),
+    supplier_id: text(row.supplier_id),
+    supplier: supplier ? { name: text(supplier.name) } : null,
+    variant_id: text(row.variant_id),
     variant: variant
       ? {
-          title: variant.title,
-          sku: variant.sku ?? null,
-          product_id: variant.product_id,
+          title: text(variant.title),
+          sku: textOrNull(variant.sku),
+          product_id: text(variant.product_id),
         }
       : null,
-    external_id: String(row.external_id),
-    sku: nullable(row.sku),
-    barcode: nullable(row.barcode),
-    purchase_price:
-      row.purchase_price === null || row.purchase_price === undefined
-        ? null
-        : Number(row.purchase_price),
-    quantity: Number(row.quantity),
-    synced_at: row.synced_at ? new Date(row.synced_at as string) : null,
-    created_at: new Date(row.created_at as string),
-    updated_at: new Date(row.updated_at as string),
+    external_id: text(row.external_id),
+    sku: textOrNull(row.sku),
+    barcode: textOrNull(row.barcode),
+    purchase_price: numberOrNull(row.purchase_price),
+    quantity: numberOr(row.quantity),
+    synced_at: dateOrNull(row.synced_at),
+    created_at: toDate(row.created_at),
+    updated_at: toDate(row.updated_at),
   };
 };
 

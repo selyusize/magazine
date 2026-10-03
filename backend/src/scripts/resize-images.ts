@@ -15,6 +15,7 @@ import type { ExecArgs } from "@medusajs/framework/types";
 import { Container } from "@container/index";
 import { ImageResizer } from "@shared/service/image/image-resizer";
 import { Logger } from "@shared/service/logger/logger";
+import { errorMessage } from "@shared/service/error/error-message";
 
 const STATIC_DIR = path.resolve("static");
 
@@ -48,7 +49,7 @@ export default async function resizeImages({
     } catch (error) {
       failed++;
       logger.warn(
-        `images/resize: ${key} пропущен: ${(error as Error).message}`,
+        `images/resize: ${key} пропущен: ${errorMessage(error)}`,
       );
     }
   }

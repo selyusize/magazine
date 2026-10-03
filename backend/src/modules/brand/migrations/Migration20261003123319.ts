@@ -6,7 +6,7 @@ export class Migration20261003123319 extends Migration {
       `alter table if exists "brand" drop constraint if exists "brand_handle_unique";`,
     );
     this.addSql(
-      `create table if not exists "brand" ("id" text not null, "name" text not null, "handle" text not null, "description" text null, "is_active" boolean not null default true, "created_at" timestamptz not null default now(), "updated_at" timestamptz not null default now(), "deleted_at" timestamptz null, constraint "brand_pkey" primary key ("id"));`,
+      `create table if not exists "brand" ("id" text not null, "name" text not null, "handle" text not null, "description" text null, "is_active" boolean not null default true, "synonyms" jsonb not null default '[]', "created_at" timestamptz not null default now(), "updated_at" timestamptz not null default now(), "deleted_at" timestamptz null, constraint "brand_pkey" primary key ("id"));`,
     );
     this.addSql(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_brand_handle_unique" ON "brand" ("handle") WHERE deleted_at IS NULL;`,

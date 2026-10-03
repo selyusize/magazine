@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { sdk } from "../../lib/sdk";
 
-export type RedirectCode = 301 | 302 | 410;
+export const REDIRECT_CODES = [301, 302, 410] as const;
+export type RedirectCode = (typeof REDIRECT_CODES)[number];
 
 export type AdminRedirect = {
   id: string;

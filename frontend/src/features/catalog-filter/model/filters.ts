@@ -17,7 +17,7 @@ export type FilterGroup =
   | { type: "checkbox" | "radio" | "color"; key: string; label: string; options: FilterOption[] }
   | { type: "range"; key: string; label: string; min: number; max: number; step: number; currencyCode?: string };
 
-/** Поля индекса для запроса: цена — в валюте региона (`min_price_eur`), её может не быть в индексе */
+/** Поля индекса для запроса: цена — в валюте региона (`min_price_rub`), её может не быть в индексе */
 export type FilterIndexContext = { priceField?: string; currencyCode?: string };
 
 /** Порядок ключей в URL — порядок фильтров в конфиге: у одной выдачи один адрес */

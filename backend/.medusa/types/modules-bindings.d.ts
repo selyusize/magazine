@@ -32,6 +32,7 @@ import type FilterPage from '../../src/modules/filter-page'
 import type Supplier from '../../src/modules/supplier'
 import type Catalog from '../../src/modules/catalog'
 import type Attribute from '../../src/modules/attribute'
+import type Exchange from '../../src/modules/exchange'
 
 declare module '@medusajs/framework/types' {
   interface ModuleImplementations {
@@ -68,6 +69,7 @@ declare module '@medusajs/framework/types' {
     'filter_page': InstanceType<(typeof FilterPage)['service']>,
     'supplier': InstanceType<(typeof Supplier)['service']>,
     'catalog': InstanceType<(typeof Catalog)['service']>,
-    'attribute': InstanceType<(typeof Attribute)['service']>
+    'attribute': InstanceType<(typeof Attribute)['service']>,
+    'exchange': InstanceType<(typeof Exchange)['service']>
   }
 }

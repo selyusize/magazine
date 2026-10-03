@@ -1,10 +1,23 @@
+import { MedusaError } from "@medusajs/framework/utils";
 import type { MedusaContainer } from "@medusajs/framework/types";
 import type { z } from "@medusajs/framework/zod";
 
 import type { DTO } from "../contract/dto";
+import { isRecord } from "../query/narrow";
 
 /** Строка таблицы сущности, как её отдаёт сервис модуля или Query. */
 export type CRUDRow = { id: string } & Record<string, unknown>;
+
+export const isCRUDRow = (value: unknown): value is CRUDRow => isRecord(value) && typeof value.id === "string";
+
+/** Строки из ответа сервиса или Query: всё, что не строка с `id`, отбрасывается. */
+export const toCRUDRows = (value: unknown): CRUDRow[] => (Array.isArray(value) ? value.filter(isCRUDRow) : []);
+
+/** Одна строка, которая обязана быть (ответ `create`/`update`). */
+export function toCRUDRow(value: unknown): CRUDRow {
+  if (isCRUDRow(value)) return value;
+  throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "CRUD: сервис модуля вернул не строку сущности");
+}
 
 /** Сущность для CRUD-фабрики: одно описание — команды, запросы, Actions и middleware админки. */
 export type CRUDDefinition<TDTO extends DTO & { id: string }> = {
@@ -53,16 +66,23 @@ export function repository(
     definition.module,
   );
   const plural = definition.plural ?? `${definition.model}s`;
-  const call = <T>(method: string, ...args: unknown[]): Promise<T> =>
-    service[`${method}${plural}`](...args) as Promise<T>;
+  const call = (method: string, ...args: unknown[]): Promise<unknown> =>
+    service[`${method}${plural}`](...args);
 
   return {
-    list: (filters: Record<string, unknown>) =>
-      call<CRUDRow[]>("list", filters),
-    create: (data: Record<string, unknown>) => call<CRUDRow>("create", data),
-    update: (data: CRUDRow) => call<CRUDRow>("update", data),
-    softDelete: (ids: string[]) => call<void>("softDelete", ids),
-    restore: (ids: string[]) => call<void>("restore", ids),
-    delete: (ids: string[]) => call<void>("delete", ids),
+    list: async (filters: Record<string, unknown>) =>
+      toCRUDRows(await call("list", filters)),
+    create: async (data: Record<string, unknown>) =>
+      toCRUDRow(await call("create", data)),
+    update: async (data: CRUDRow) => toCRUDRow(await call("update", data)),
+    softDelete: async (ids: string[]) => {
+      await call("softDelete", ids);
+    },
+    restore: async (ids: string[]) => {
+      await call("restore", ids);
+    },
+    delete: async (ids: string[]) => {
+      await call("delete", ids);
+    },
   };
 }

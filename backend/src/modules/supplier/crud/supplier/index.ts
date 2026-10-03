@@ -1,30 +1,49 @@
 import { defineCRUD } from "@shared/crud/define-crud";
 import type { CRUDRow } from "@shared/crud/definition";
+import { isString, numberOr, recordOf, text, textOrNull, toDate } from "@shared/query/narrow";
 
 import { SUPPLIER_MODULE } from "../../index";
 import type { SupplierDTO } from "./dto";
 import { CreateSupplierSchema, UpdateSupplierSchema } from "./schema";
 
-const nullable = (value: unknown): string | null =>
-  typeof value === "string" ? value : null;
+type Setting = SupplierDTO["exchange"][string];
+
+const isSetting = (value: unknown): value is Setting =>
+  value === null ||
+  ["string", "number", "boolean"].includes(typeof value) ||
+  (Array.isArray(value) && value.every(isString));
+
+/** Плоские настройки из JSON-поля: значения других типов отбрасываются. */
+const settingsOf = (value: unknown): Record<string, Setting> =>
+  Object.fromEntries(
+    Object.entries(recordOf(value)).filter((entry): entry is [string, Setting] => isSetting(entry[1])),
+  );
+
+/** Наценка — без списков (`ExchangeSchema` их допускает только в обмене). */
+const markupOf = (value: unknown): SupplierDTO["markup"] =>
+  Object.fromEntries(
+    Object.entries(settingsOf(value)).filter(
+      (entry): entry is [string, string | number | boolean | null] => !Array.isArray(entry[1]),
+    ),
+  );
 
 const toSupplierDTO = (row: CRUDRow): SupplierDTO => ({
   id: row.id,
-  name: String(row.name),
-  contact_name: nullable(row.contact_name),
-  phone: nullable(row.phone),
-  email: nullable(row.email),
-  order_email: nullable(row.order_email),
-  order_api_url: nullable(row.order_api_url),
-  ship_city: String(row.ship_city),
-  ship_address: nullable(row.ship_address),
-  assembly_days: Number(row.assembly_days),
+  name: text(row.name),
+  contact_name: textOrNull(row.contact_name),
+  phone: textOrNull(row.phone),
+  email: textOrNull(row.email),
+  order_email: textOrNull(row.order_email),
+  order_api_url: textOrNull(row.order_api_url),
+  ship_city: text(row.ship_city),
+  ship_address: textOrNull(row.ship_address),
+  assembly_days: numberOr(row.assembly_days),
   is_active: Boolean(row.is_active),
-  exchange: (row.exchange as SupplierDTO["exchange"] | null) ?? {},
-  markup: (row.markup as SupplierDTO["markup"] | null) ?? {},
-  stock_location_id: nullable(row.stock_location_id),
-  created_at: new Date(row.created_at as string),
-  updated_at: new Date(row.updated_at as string),
+  exchange: settingsOf(row.exchange),
+  markup: markupOf(row.markup),
+  stock_location_id: textOrNull(row.stock_location_id),
+  created_at: toDate(row.created_at),
+  updated_at: toDate(row.updated_at),
 });
 
 /**

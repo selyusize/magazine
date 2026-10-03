@@ -3,6 +3,7 @@ import type {
   MedusaContainer,
 } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
+import type { z } from "@medusajs/framework/zod";
 
 import type { DTO } from "../contract/dto";
 import type { Fetcher } from "../contract/fetcher";
@@ -28,12 +29,14 @@ export abstract class AbstractFetcher<
   /**
    * Данные внешних API (ПВЗ перевозчиков, справочники) — из кэша Medusa в Redis, иначе `load()` и в кэш на `ttl` секунд.
    * Без Redis модуля кэша нет — всегда `load()`. Данные своих сущностей кэшируем через `graph(..., { cache })`.
+   * Значение из кэша проверяется `schema`: не подошло (формат поменялся с прошлой версии) — загружается заново.
    */
-  protected async cached<T extends object>(
+  protected async cached<S extends z.ZodType<object>>(
     key: string,
     ttl: number,
-    load: () => Promise<T>,
-  ): Promise<T> {
+    schema: S,
+    load: () => Promise<z.infer<S>>,
+  ): Promise<z.infer<S>> {
     const cache = this.container.resolve<ICachingModuleService | undefined>(
       Modules.CACHING,
       {
@@ -42,8 +45,8 @@ export abstract class AbstractFetcher<
     );
     if (!cache) return load();
 
-    const hit = (await cache.get({ key })) as T | null;
-    if (hit) return hit;
+    const hit = schema.safeParse(await cache.get({ key }));
+    if (hit.success) return hit.data;
 
     const data = await load();
     await cache.set({ key, data, ttl });

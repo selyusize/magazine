@@ -37,9 +37,7 @@ export const updateCatalogForProductWorkflow = createWorkflow(
     });
     return new WorkflowResponse(
       transform(data, (data): UpdatedProductCatalogDTO =>
-        toProductCatalogDTO(
-          data[0] as Record<string, unknown> & { id: string },
-        ),
+        toProductCatalogDTO(data[0]),
       ),
     );
   },

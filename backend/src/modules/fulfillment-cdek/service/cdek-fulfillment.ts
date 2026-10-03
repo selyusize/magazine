@@ -9,6 +9,7 @@ import { CDEKClient, type CDEKOptions } from "@shared/service/cdek/cdek-client";
 import {
   CarrierFulfillmentService,
   toShippingPrice,
+  type CalculationContext,
   type CarrierOption,
 } from "@shared/service/delivery/carrier-fulfillment";
 import type { ParcelDefaults } from "@shared/service/delivery/parcel";
@@ -53,7 +54,7 @@ export class CDEKFulfillmentService extends CarrierFulfillmentService {
   async calculatePrice(
     optionData: CalculateShippingOptionPriceDTO["optionData"],
     _data: CalculateShippingOptionPriceDTO["data"],
-    context: CalculateShippingOptionPriceDTO["context"],
+    context: CalculationContext,
   ): Promise<CalculatedShippingOptionPrice> {
     const option = this.option(optionData);
     const origin = this.origin(context);

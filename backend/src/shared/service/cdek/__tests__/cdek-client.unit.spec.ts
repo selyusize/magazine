@@ -1,4 +1,4 @@
-import type { Logger } from "@medusajs/framework/types";
+import { fakeLogger } from "../../../../../integration-tests/fakes";
 
 import { CDEKClient } from "../cdek-client";
 
@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 describe("CDEKClient", () => {
-  const logger = { warn: jest.fn(), error: jest.fn() } as unknown as Logger;
+  const logger = fakeLogger();
   let fetchMock: jest.SpiedFunction<typeof fetch>;
   let client: CDEKClient;
 
@@ -44,8 +44,7 @@ describe("CDEKClient", () => {
     expect(calledURL(0).pathname).toBe("/v2/oauth/token");
     expect(calledURL(0).searchParams.get("client_id")).toBe("id");
     expect(
-      (fetchMock.mock.calls[1][1]?.headers as Record<string, string>)
-        .authorization,
+      new Headers(fetchMock.mock.calls[1][1]?.headers).get("authorization"),
     ).toBe("Bearer t1");
   });
 

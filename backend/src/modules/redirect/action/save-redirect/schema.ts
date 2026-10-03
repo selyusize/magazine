@@ -16,13 +16,7 @@ export const SaveRedirectSchema = z
       .union([PathSchema, z.literal(""), z.null()])
       .optional()
       .transform((path) => path || null),
-    code: z.union(
-      REDIRECT_CODES.map((code) => z.literal(code)) as [
-        z.ZodLiteral<301>,
-        z.ZodLiteral<302>,
-        z.ZodLiteral<410>,
-      ],
-    ),
+    code: z.literal(REDIRECT_CODES),
   })
   .superRefine((redirect, context) => {
     const problem = findRedirectProblem(redirect);

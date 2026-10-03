@@ -14,6 +14,12 @@ import { imageConfig } from "./src/container/common/image";
 
 const redisUrl = process.env.REDIS_URL;
 
+const WORKER_MODES = ["shared", "worker", "server"] as const;
+
+/** Режим процесса из env; пусто или опечатка — `shared` (всё в одном процессе, dev). */
+const workerMode = (value: string | undefined): (typeof WORKER_MODES)[number] =>
+  WORKER_MODES.find((mode) => mode === value) ?? "shared";
+
 // С REDIS_URL события, workflows и блокировки идут через Redis — это обязательно,
 // когда server и worker работают в разных контейнерах. Без него — in-memory (только для dev).
 const redisModules = redisUrl
@@ -119,9 +125,7 @@ module.exports = defineConfig({
     databaseUrl: process.env.DATABASE_URL,
     redisUrl,
     // shared — всё в одном процессе (dev); server — HTTP API; worker — подписчики, jobs, workflows
-    workerMode:
-      (process.env.MEDUSA_WORKER_MODE as "shared" | "worker" | "server") ||
-      "shared",
+    workerMode: workerMode(process.env.MEDUSA_WORKER_MODE),
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
@@ -148,6 +152,7 @@ module.exports = defineConfig({
     { resolve: "./src/modules/supplier" },
     { resolve: "./src/modules/catalog" },
     { resolve: "./src/modules/attribute" },
+    { resolve: "./src/modules/exchange" },
   ],
   // Без модуля caching флаг ничего не делает — включаем вместе с Redis
   featureFlags: { caching: Boolean(redisUrl) },

@@ -3,11 +3,7 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
 import { SLUG_PATTERN, toSlug, toUniqueSlug } from "@shared/service/slug/slug";
 
-import {
-  URL_ENTITIES,
-  type URLEntityRow,
-  type URLEntityType,
-} from "../service/path";
+import { toURLEntityRows, URL_ENTITIES, type URLEntityType } from "../service/path";
 
 export type EntityHandle = {
   /** Сущность уже удалена — синхронизировать нечего. */
@@ -37,7 +33,7 @@ export const buildEntityHandleStep = createStep(
       fields: config.fields,
       filters: { id: command.entity_id },
     });
-    const row = data[0] as URLEntityRow | undefined;
+    const [row] = toURLEntityRows(data);
     if (!row)
       return new StepResponse<EntityHandle>({
         found: false,

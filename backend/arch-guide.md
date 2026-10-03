@@ -154,9 +154,14 @@ src/api/admin/brands/middleware.ts   # brandCRUD.middlewares("/admin/brands")
 src/admin/brands/resource.ts         # колонки и поля формы; страница — <CRUDPage resource={...} /> (п.14)
 ```
 
+Пакетная запись (импорт) — отдельные batch-команды модуля-владельца (`set-catalog-for-products`,
+`upsert-supplier-offers`): чужой модуль компонует их через `runAsStep`, а не пишет в чужие таблицы.
+Долгий процесс (импорт поставщика) — Handler без workflow, который гонит пачки через команды; пример —
+`exchange/command/process-import-run`.
+
 Всё, что сверх CRUD (каскад, импорт, доп. проверки), — обычный use‑case рядом (`command/{use-case}/`), он может
 запускать workflow фабрики через `brandCRUD.workflows.delete.runAsStep(...)` (пример —
-`filter-page/command/delete-filter-pages-by-category-id`). Удаление в фабрике мягкое (`softDelete`): уникальные
+`filter-page/command/delete-filter-pages-by-category-id`). Удаление в фабрике мягкое (`softDelete`) и мягко снимает связи сущности со своей таблицей (`removeRemoteLinkStep`, бренд ↔ товар); уникальные
 индексы — частичные (`WHERE deleted_at IS NULL`), handle удалённой записи снова свободен.
 
 ---
@@ -813,6 +818,8 @@ export const config: SubscriberConfig = { event: "order.placed" };
 ## 13. Тесты
 
 - Чистые функции и доменные сервисы (`toXxx`, расчёты) — unit‑тесты в `__tests__/` рядом с кодом, `pnpm test:unit`.
+  Исключение — `src/search`: загрузчик индексов Medusa импортирует оттуда каждый файл (и `__tests__` тоже), кроме
+  начинающихся с `_`, поэтому тесты там — `_имя.unit.spec.ts`.
 - Опубликовать товар в тесте можно только с обязательными полями (этап 2.6: категория, фото, цена, предложение).
   Тесту, которому они не нужны (корзина, доставка), — черновик через workflow и статус напрямую в модуле product.
 - Сервис модуля — `pnpm test:integration:modules`.

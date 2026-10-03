@@ -1,8 +1,12 @@
 import { MedusaError } from "@medusajs/framework/utils";
 
+import { isString, recordOrNull, records, text, textOrNull } from "@shared/query/narrow";
+
 /** 301 — переехало навсегда, 302 — временно, 410 — страницы больше нет. */
 export const REDIRECT_CODES = [301, 302, 410] as const;
 export type RedirectCode = (typeof REDIRECT_CODES)[number];
+
+export const isRedirectCode = (code: number): code is RedirectCode => REDIRECT_CODES.some((item) => item === code);
 
 /** Сущности, у которых есть своя страница на витрине. */
 export const URL_ENTITY_TYPES = [
@@ -17,6 +21,10 @@ export type URLEntityType = (typeof URL_ENTITY_TYPES)[number];
 
 /** Строка Query с полями из `URL_ENTITIES[type].fields`. */
 export type URLEntityRow = { id: string } & Record<string, unknown>;
+
+/** Строки Query сущности с адресом: без `id` строка не годится. */
+export const toURLEntityRows = (rows: unknown[]): URLEntityRow[] =>
+  records(rows).flatMap((row) => (isString(row.id) ? [{ ...row, id: row.id }] : []));
 
 type URLEntity = {
   /** Сущность в Query. */
@@ -36,7 +44,7 @@ type URLEntity = {
   toPath: (row: URLEntityRow) => string | null;
 };
 
-const handleOf = (row: URLEntityRow): string => String(row.handle ?? "");
+const handleOf = (row: URLEntityRow): string => text(row.handle);
 
 /** Пути страниц сущностей. Должны совпадать с `frontend/src/shared/config/routes.ts`. */
 export const URL_ENTITIES: Record<URLEntityType, URLEntity> = {
@@ -87,11 +95,8 @@ export const URL_ENTITIES: Record<URLEntityType, URLEntity> = {
     renamable: false,
     prefix: "filter-page",
     toPath: (row) => {
-      const category = row.product_category as
-        { handle?: string | null } | null | undefined;
-      return category?.handle
-        ? `/catalog/${category.handle}/${handleOf(row)}`
-        : null;
+      const categoryHandle = textOrNull(recordOrNull(row.product_category)?.handle);
+      return categoryHandle ? `/catalog/${categoryHandle}/${handleOf(row)}` : null;
     },
   },
 };
@@ -150,7 +155,7 @@ export function findRedirectProblem(redirect: {
 }): string | null {
   const { from_path, to_path, code } = redirect;
 
-  if (!REDIRECT_CODES.includes(code as RedirectCode))
+  if (!isRedirectCode(code))
     return `код ${code} — допустимы 301, 302, 410`;
   if (code === 410 && to_path !== null)
     return "у кода 410 не бывает адреса назначения";

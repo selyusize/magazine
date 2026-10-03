@@ -1,4 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types";
+import { z } from "@medusajs/framework/zod";
 
 import { Injectable, InjectContainer } from "@shared/container";
 import { AbstractFetcher } from "@shared/query/abstract-fetcher";
@@ -11,11 +12,30 @@ import {
   type YandexPickupPoint,
 } from "@shared/service/yandex-delivery/yandex-delivery-client";
 
-import type { DeliveryProvider, PickupPointDTO } from "./dto";
+import { DELIVERY_PROVIDERS, type DeliveryProvider, type PickupPointDTO } from "./dto";
 import type { GetPickupPointsByCityQuery } from "./query";
 
 /** Пункты меняются редко, а список по Москве — тысячи точек: держим в кэше полдня. */
 const POINTS_TTL_SECONDS = 12 * 60 * 60;
+
+/** Что лежит в кэше: тот же DTO; другой формат (старая версия кода) — загрузить заново. */
+const CachedPointsSchema = z.object({
+  points: z.array(
+    z.object({
+      id: z.string(),
+      provider: z.enum(DELIVERY_PROVIDERS),
+      name: z.string(),
+      type: z.enum(["pickup_point", "postamat", "post_office"]),
+      address: z.string(),
+      city: z.string(),
+      postal_code: z.string().nullable(),
+      latitude: z.number(),
+      longitude: z.number(),
+      work_time: z.string().nullable(),
+      phone: z.string().nullable(),
+    }),
+  ),
+});
 
 const fromCDEK = (point: CDEKPickupPoint): PickupPointDTO => ({
   id: point.code,
@@ -63,7 +83,7 @@ export class GetPickupPointsByCityFetcher extends AbstractFetcher<
     const city = query.city.trim();
     const key = `delivery:points:${query.provider}:${city.toLowerCase()}`;
 
-    const { points } = await this.cached(key, POINTS_TTL_SECONDS, async () => ({
+    const { points } = await this.cached(key, POINTS_TTL_SECONDS, CachedPointsSchema, async () => ({
       points: await this.load(query.provider, city),
     }));
     return points;

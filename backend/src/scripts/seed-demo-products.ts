@@ -27,7 +27,7 @@ import {
   Modules,
   ProductStatus,
 } from '@medusajs/framework/utils'
-import type { ExecArgs } from '@medusajs/framework/types'
+import type { CreateProductWorkflowInputDTO, ExecArgs } from '@medusajs/framework/types'
 
 import { Container } from '@container/index'
 import { UpdateCatalogForProductHandler } from '@domain/catalog/command/update-catalog-for-product/handler'
@@ -233,8 +233,8 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
 
   const sharedOptions: SharedOption[] = optionRows
     .map((option) => ({
-      id: option.id as string,
-      title: option.title as string,
+      id: option.id,
+      title: option.title,
       values: (option.values ?? [])
         .map((value) => value?.value)
         .filter((value): value is string => Boolean(value)),
@@ -260,7 +260,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     alreadySeeded.map((product) => product.handle).filter(Boolean)
   )
 
-  const products: Record<string, unknown>[] = []
+  const products: CreateProductWorkflowInputDTO[] = []
 
   for (let index = 0; index < PRODUCT_COUNT; index++) {
     // Derived from the index, never from the PRNG. Skipping a product consumes
@@ -322,8 +322,8 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
       weight: 300 + Math.floor(random() * 500),
       shipping_profile_id: shippingProfile.id,
       collection_id: collection?.id,
-      tag_ids: chosenTags.map((tag) => tag.id as string),
-      category_ids: chosenCategories.map((category) => category.id as string),
+      tag_ids: chosenTags.map((tag) => tag.id),
+      category_ids: chosenCategories.map((category) => category.id),
       sales_channels: [{ id: salesChannel.id }],
       options: chosenOptions.map((option) => ({ id: option.id })),
       variants: combinations.map((combination) => ({
@@ -354,7 +354,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     const batch = products.slice(start, start + BATCH_SIZE)
 
     const { result } = await createProductsWorkflow(container).run({
-      input: { products: batch as never },
+      input: { products: batch },
     })
     createdIds.push(...result.map((product) => product.id))
 
@@ -428,7 +428,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     await search.ingest({
       name: 'product.created',
       data: chunk.map((product) => ({ id: product.id })),
-    } as never)
+    })
   }
 
   logger.info(`Search index caught up for ${allProducts.length} product(s).`)

@@ -1,11 +1,14 @@
-import type { Logger, MedusaContainer } from "@medusajs/framework/types";
+import { asValue } from "@medusajs/framework/awilix";
+import type { MedusaContainer } from "@medusajs/framework/types";
+import { createMedusaContainer, Modules } from "@medusajs/framework/utils";
 
 import { CDEKClient } from "@shared/service/cdek/cdek-client";
 import { YandexDeliveryClient } from "@shared/service/yandex-delivery/yandex-delivery-client";
 
+import { fakeLogger } from "../../../../integration-tests/fakes";
 import { GetPickupPointsByCityFetcher } from "../query/get-pickup-points-by-city/fetcher";
 
-const logger = {} as Logger;
+const logger = fakeLogger();
 const cdekPoint = {
   code: "MOS4",
   name: "MOS4, Москва",
@@ -30,15 +33,18 @@ describe("GetPickupPointsByCityFetcher", () => {
   );
 
   /** Контейнер Medusa с модулем кэша (Map) или без него. */
-  const container = (cache?: Map<string, object>) =>
-    ({
-      resolve: () =>
-        cache && {
+  const container = (cache?: Map<string, object>): MedusaContainer => {
+    const medusa = createMedusaContainer();
+    if (cache)
+      medusa.register(
+        Modules.CACHING,
+        asValue({
           get: async ({ key }: { key: string }) => cache.get(key) ?? null,
-          set: async ({ key, data }: { key: string; data: object }) =>
-            void cache.set(key, data),
-        },
-    }) as unknown as MedusaContainer;
+          set: async ({ key, data }: { key: string; data: object }) => void cache.set(key, data),
+        }),
+      );
+    return medusa;
+  };
 
   afterEach(() => jest.restoreAllMocks());
 

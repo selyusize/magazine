@@ -188,8 +188,8 @@ describe("Каталог: фильтры в поисковом индексе", 
   });
 
   it("валюты нет в индексе — фильтра по цене нет", () => {
-    expect(searchPriceField("RUB")).toBeUndefined();
-    expect(searchPriceField("EUR")).toBe("min_price_eur");
+    expect(searchPriceField("EUR")).toBeUndefined();
+    expect(searchPriceField("RUB")).toBe("min_price_rub");
     const { clauses, facets } = filterQuery(filters, { price: ["100-200"] }, {});
     expect(clauses).toEqual([]);
     expect(facets).not.toContainEqual(expect.objectContaining({ type: "stats" }));

@@ -1,6 +1,9 @@
 import { AbstractFetcher } from "@shared/query/abstract-fetcher";
 import { Injectable } from "@shared/container";
 
+import { numberOr, numberOrNull, oneOf, recordOf, recordOrNull, text, textOrNull } from "@shared/query/narrow";
+
+import { ATTRIBUTE_TYPES } from "../../service/attribute-value";
 import type { AttributeValueDTO } from "./dto";
 import type { GetAttributeValuesByProductIdQuery } from "./query";
 
@@ -19,36 +22,43 @@ export const ATTRIBUTE_VALUE_FIELDS = [
   "number",
 ];
 
-type AttributeValueRow = Omit<AttributeValueDTO, "attribute"> & {
-  attribute: AttributeValueDTO["attribute"] & { rank: number };
-};
+type AttributeValueRow = AttributeValueDTO & { rank: number };
 
-const toAttributeValueDTO = (row: AttributeValueRow): AttributeValueDTO => ({
-  id: row.id,
-  attribute_id: row.attribute_id,
-  attribute: {
-    name: row.attribute.name,
-    handle: row.attribute.handle,
-    type: row.attribute.type,
-    unit: row.attribute.unit ?? null,
-  },
-  variant_id: row.variant_id ?? null,
-  value: row.value,
-  handle: row.handle,
-  number: row.number ?? null,
-});
+/** Строка Query → DTO; значение без характеристики (её удалили) — пусто. */
+const toAttributeValueRow = (value: unknown): AttributeValueRow[] => {
+  const row = recordOf(value);
+  const attribute = recordOrNull(row.attribute);
+  if (!attribute) return [];
+  return [
+    {
+      id: text(row.id),
+      attribute_id: text(row.attribute_id),
+      attribute: {
+        name: text(attribute.name),
+        handle: text(attribute.handle),
+        type: oneOf(attribute.type, ATTRIBUTE_TYPES, "string"),
+        unit: textOrNull(attribute.unit),
+      },
+      variant_id: textOrNull(row.variant_id),
+      value: text(row.value),
+      handle: text(row.handle),
+      number: numberOrNull(row.number),
+      rank: numberOr(attribute.rank),
+    },
+  ];
+};
 
 /** Строки Query → DTO в порядке таблицы характеристик (rank, название), значения одной характеристики — по алфавиту. */
 export const toAttributeValueDTOs = (rows: unknown[]): AttributeValueDTO[] =>
-  (rows as AttributeValueRow[])
-    .filter((row) => row.attribute)
+  rows
+    .flatMap(toAttributeValueRow)
     .sort(
       (a, b) =>
-        a.attribute.rank - b.attribute.rank ||
+        a.rank - b.rank ||
         a.attribute.name.localeCompare(b.attribute.name, "ru") ||
         a.value.localeCompare(b.value, "ru"),
     )
-    .map(toAttributeValueDTO);
+    .map(({ rank: _rank, ...dto }) => dto);
 
 /** Характеристики товара и его вариантов — блок «Характеристики» в карточке. Нет значений — пустой список. */
 @Injectable()

@@ -4,6 +4,8 @@ import {
 } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
+import { recordOf, recordOrNull, textOrNull } from "@shared/query/narrow";
+
 import type { UpdateCatalogForProductCommand } from "../command";
 
 const notFound = (what: string) =>
@@ -47,8 +49,7 @@ export const validateProductCatalogStep = createStep(
         throw notFound(`Категория ${command.main_category_id} не найдена`);
     }
 
-    const previousBrand =
-      (product as { brand?: { id: string } | null }).brand?.id ?? null;
+    const previousBrand = textOrNull(recordOrNull(recordOf(product).brand)?.id);
     const change: ProductCatalogChange = {
       product_id: product.id,
       brand:

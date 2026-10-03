@@ -101,9 +101,10 @@ self-hosted Docker, фронт — Next 16 (рендер страниц и sitem
 
 - Пересчёт остатков поставщика идёт одним запуском. Разбить его на пачки нужно в импорте (этап 4).
 
-- При удалении бренда его связь с товарами остаётся в таблице. Query её уже не отдаёт, так что на витрину это не влияет.
+- ✅ (2026-10-04) Удаление в CRUD-фабрике мягко снимает связи сущности со своей таблицей (бренд ↔ товар).
 
-- Отдельно: при сиде сыплются ошибки подписчика поиска на product-option.created в src/search/product.ts. Это ошибка из старого кода, не из этапа 2.
+- ✅ (2026-10-04) Ошибки подписчика поиска на `product-option.*`: опции с Medusa 2.16 общие (`product_option.products`),
+  `src/search/helpers/resolve-product-ids.ts` находит товары через эту связь.
 
 ## Этап 3. URL: slug и редиректы
 
@@ -137,6 +138,29 @@ self-hosted Docker, фронт — Next 16 (рендер страниц и sitem
 
 Цель: каталог, цены и остатки поставщиков попадают в магазин автоматически, полностью
 и инкрементально, без ручной работы.
+
+Сделано (2026-10-04, бэкенд): модуль `src/modules/exchange`, тест — `integration-tests/http/exchange.spec.ts`,
+фикстуры — `integration-tests/fixtures/commerceml`.
+
+- Приём: протокол 1С `/1c/exchange/:supplier` (checkauth/init/file/import, zip частями, cookie — подписанный токен),
+  pull — job `exchange-pull-suppliers` + ручной `POST /admin/suppliers/:id/import-runs` (HTTP с Basic). Настройки —
+  `supplier.exchange` (`mode`, логин/пароль, `urls`, типы цен, `publish`, `brand_property`), наценка — `markup.percent`.
+- Разбор: потоковый `readXMLRecords` (`src/shared/service/xml`, UTF-8/windows-1251), `readCommerceML` (2.03–2.10,
+  `prices`/`rests`, `ИзмененияПакетаПредложений`), пачки по `EXCHANGE_BATCH_SIZE`.
+- Запись: каждая пачка — workflow (`stage-exchange-products`, `import-exchange-offers`, `add-exchange-variants`),
+  модули пишут своё своими batch-командами (`ensure-brands-by-names`, `set-catalog-for-products`,
+  `set-attribute-values-for-products`, `upsert-supplier-offers`, `zero-stale-offers-for-supplier`). Упала пачка —
+  повтор по одному товару, ошибка в запуск. Повтор файла ничего не пишет (хэш данных товара).
+- Защита ручных правок — сравнение карточки со снимком «что записал импорт» (`exchange_product.imported`).
+- Контроль: `import_run` (статус, позиция, счётчики, ошибки), лог `logs/import-<поставщик>.log`, продолжение
+  с места падения (job `exchange-resume-import-runs`), блокировка на поставщика. Admin API: `/admin/import-runs`,
+  `/admin/import-runs/:id/retry`, `/admin/suppliers/:id/exchange-groups|exchange-properties|exchange-review`,
+  `/admin/exchange-groups/:id`, `/admin/exchange-properties/:id`.
+
+Админка — страница «Импорт» (`src/admin/routes/exchange`): поставщик → настройки обмена (адрес для 1С, доступы, ссылки,
+типы цен, наценка, публикация), история запусков с ошибками, «Загрузить сейчас» и повтор, маппинг групп и свойств,
+очередь «требует разбора». Осталось: FTP/SFTP (новый `DownloadTransport`), ручная склейка дублей в админке, алерт «поставщик молчит» (этап 5.4).
+Розница пока = цена поставщика или закупка + `markup.percent`, цену меняет только поставщик-владелец карточки (этап 5).
 
 ### 4.1. Получение файлов — два режима на поставщика
 
