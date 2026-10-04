@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { sdk } from "../../lib/sdk";
+import { adminFetch } from "../../lib/admin-fetch";
 import { type CRUDResource, type CRUDRow, isCRUDRow } from "../types";
 
 type Page = { rows: CRUDRow[]; count: number };
@@ -14,16 +14,13 @@ export function useCRUDApi(resource: CRUDResource) {
     useQuery({
       queryKey: [...key, params],
       queryFn: async (): Promise<Page> => {
-        const data = await sdk.client.fetch<Record<string, unknown>>(
-          resource.path,
-          {
-            query: {
-              q: params.q || undefined,
-              limit: params.limit,
-              offset: params.offset,
-            },
+        const data = await adminFetch<Record<string, unknown>>(resource.path, {
+          query: {
+            q: params.q || undefined,
+            limit: params.limit,
+            offset: params.offset,
           },
-        );
+        });
         const rows = data[resource.response.many];
         return {
           rows: Array.isArray(rows) ? rows.filter(isCRUDRow) : [],
@@ -42,7 +39,7 @@ export function useCRUDApi(resource: CRUDResource) {
         id: string | null;
         body: Record<string, unknown>;
       }) => {
-        const data = await sdk.client.fetch<Record<string, unknown>>(
+        const data = await adminFetch<Record<string, unknown>>(
           id ? `${resource.path}/${id}` : resource.path,
           {
             method: "POST",
@@ -59,7 +56,7 @@ export function useCRUDApi(resource: CRUDResource) {
   const useDelete = () =>
     useMutation({
       mutationFn: (id: string) =>
-        sdk.client.fetch(`${resource.path}/${id}`, { method: "DELETE" }),
+        adminFetch(`${resource.path}/${id}`, { method: "DELETE" }),
       onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
     });
 

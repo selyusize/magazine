@@ -1,17 +1,13 @@
 import { Modules } from "@medusajs/framework/utils";
 import {
-  createApiKeysWorkflow,
   createFulfillmentSets,
   createRegionsWorkflow,
   createRemoteLinkStep,
-  createSalesChannelsWorkflow,
   createShippingOptionsWorkflow,
   createShippingProfilesWorkflow,
   createStockLocationsWorkflow,
   createStoresWorkflow,
   createTaxRegionsWorkflow,
-  linkSalesChannelsToApiKeyWorkflow,
-  linkSalesChannelsToStockLocationWorkflow,
   useQueryGraphStep,
 } from "@medusajs/medusa/core-flows";
 import {
@@ -25,60 +21,29 @@ import type { CreateInitialStoreDataCommand } from "./command";
 import type { InitialStoreDataDTO } from "./dto";
 
 /**
- * Только готовые workflows и шаги Medusa: у каждого свой откат, поэтому падение на любом шаге
+ * Общая часть сети: магазин Medusa, валюта, регион, налог и доставка. Канал продаж и ключ витрины — у каждого
+ * магазина свои, их создаёт `create-shop` (сид вызывает его следом). Только готовые workflows и шаги Medusa: у каждого свой откат, поэтому падение на любом шаге
  * откатывает уже созданное. Доставка: склад отгрузки → набор «доставка» с зоной на всю страну →
  * способы доставки с тарифом от перевозчика (price_type `calculated`).
  */
 export const createInitialStoreDataWorkflow = createWorkflow(
   "create-initial-store-data",
   (command: CreateInitialStoreDataCommand) => {
-    const salesChannels = createSalesChannelsWorkflow.runAsStep({
+    const stores = createStoresWorkflow.runAsStep({
       input: transform({ command }, ({ command }) => ({
-        salesChannelsData: [{ name: command.sales_channel_name }],
-      })),
-    });
-
-    const apiKeys = createApiKeysWorkflow.runAsStep({
-      input: transform({ command }, ({ command }) => ({
-        api_keys: [
+        stores: [
           {
-            title: command.publishable_api_key_title,
-            type: "publishable" as const,
-            created_by: "",
+            name: command.store_name,
+            supported_currencies: [
+              {
+                currency_code: command.currency_code,
+                is_default: true,
+                is_tax_inclusive: command.is_tax_inclusive,
+              },
+            ],
           },
         ],
       })),
-    });
-
-    linkSalesChannelsToApiKeyWorkflow.runAsStep({
-      input: transform(
-        { salesChannels, apiKeys },
-        ({ salesChannels, apiKeys }) => ({
-          id: apiKeys[0].id,
-          add: [salesChannels[0].id],
-        }),
-      ),
-    });
-
-    const stores = createStoresWorkflow.runAsStep({
-      input: transform(
-        { command, salesChannels },
-        ({ command, salesChannels }) => ({
-          stores: [
-            {
-              name: command.store_name,
-              supported_currencies: [
-                {
-                  currency_code: command.currency_code,
-                  is_default: true,
-                  is_tax_inclusive: command.is_tax_inclusive,
-                },
-              ],
-              default_sales_channel_id: salesChannels[0].id,
-            },
-          ],
-        }),
-      ),
     });
 
     const regions = createRegionsWorkflow.runAsStep({
@@ -121,16 +86,6 @@ export const createInitialStoreDataWorkflow = createWorkflow(
           },
         ],
       })),
-    });
-
-    linkSalesChannelsToStockLocationWorkflow.runAsStep({
-      input: transform(
-        { stockLocations, salesChannels },
-        ({ stockLocations, salesChannels }) => ({
-          id: stockLocations[0].id,
-          add: [salesChannels[0].id],
-        }),
-      ),
     });
 
     const fulfillmentSets = createFulfillmentSets(
@@ -235,23 +190,17 @@ export const createInitialStoreDataWorkflow = createWorkflow(
       {
         stores,
         regions,
-        salesChannels,
-        apiKeys,
         stockLocations,
         shippingOptions,
       },
       ({
         stores,
         regions,
-        salesChannels,
-        apiKeys,
         stockLocations,
         shippingOptions,
       }): InitialStoreDataDTO => ({
         store_id: stores[0].id,
         region_id: regions[0].id,
-        sales_channel_id: salesChannels[0].id,
-        publishable_api_key: apiKeys[0].token,
         stock_location_id: stockLocations[0].id,
         shipping_option_ids: shippingOptions.map((option) => option.id),
       }),

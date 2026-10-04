@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { sdk } from "../../lib/sdk";
+import { adminFetch } from "../../lib/admin-fetch";
 
 /** Предложение в карточке товара — `GET /admin/products/:id/supplier-offers`. */
 export type ProductSupplierOffer = {
@@ -45,7 +45,7 @@ export function useProductSupplierOffers(productId: string) {
   return useQuery({
     queryKey: offersKey(productId),
     queryFn: () =>
-      sdk.client.fetch<{ supplier_offers: ProductSupplierOffer[] }>(
+      adminFetch<{ supplier_offers: ProductSupplierOffer[] }>(
         `/admin/products/${productId}/supplier-offers`,
       ),
     select: (data) => data.supplier_offers,
@@ -57,7 +57,7 @@ export function useSupplierOptions(enabled: boolean) {
   return useQuery({
     queryKey: ["admin-supplier-options"],
     queryFn: () =>
-      sdk.client.fetch<{ suppliers: SupplierOption[] }>("/admin/suppliers", {
+      adminFetch<{ suppliers: SupplierOption[] }>("/admin/suppliers", {
         query: { limit: 100 },
       }),
     select: (data) => data.suppliers,
@@ -80,11 +80,11 @@ function useOffersMutation<TInput>(
 export const useSaveSupplierOffer = (productId: string) =>
   useOffersMutation(productId, (input: SupplierOfferInput) =>
     input.id !== null
-      ? sdk.client.fetch(`/admin/supplier-offers/${input.id}`, {
+      ? adminFetch(`/admin/supplier-offers/${input.id}`, {
           method: "POST",
           body: input.fields,
         })
-      : sdk.client.fetch("/admin/supplier-offers", {
+      : adminFetch("/admin/supplier-offers", {
           method: "POST",
           body: {
             supplier_id: input.supplier_id,
@@ -96,5 +96,5 @@ export const useSaveSupplierOffer = (productId: string) =>
 
 export const useDeleteSupplierOffer = (productId: string) =>
   useOffersMutation(productId, (id: string) =>
-    sdk.client.fetch(`/admin/supplier-offers/${id}`, { method: "DELETE" }),
+    adminFetch(`/admin/supplier-offers/${id}`, { method: "DELETE" }),
   );

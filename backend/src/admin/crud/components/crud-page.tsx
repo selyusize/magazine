@@ -1,6 +1,7 @@
 import { Button, Container, Heading, Input, Text } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 
+import { ShopSwitcher } from "../../shops/components/shop-switcher";
 import { useCRUDPage } from "../hooks/use-crud-page";
 import type { CRUDResource } from "../types";
 import { CRUDFormDrawer } from "./crud-form-drawer";
@@ -20,9 +21,12 @@ export function CRUDPage({ resource }: { resource: CRUDResource }) {
             {t(`${resource.i18n}.description`)}
           </Text>
         </div>
-        <Button size="small" onClick={page.openNew}>
-          {t("crud.create")}
-        </Button>
+        <div className="flex items-center gap-x-4">
+          <ShopSwitcher />
+          <Button size="small" onClick={page.openNew}>
+            {t("crud.create")}
+          </Button>
+        </div>
       </div>
 
       <div className="px-6 py-4">

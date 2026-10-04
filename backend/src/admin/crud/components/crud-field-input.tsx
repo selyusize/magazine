@@ -10,6 +10,8 @@ type CRUDFieldInputProps = {
   id: string;
   value: FormValue;
   categories: { id: string; name: string }[];
+  /** Поле `createOnly` в форме изменения. */
+  disabled?: boolean;
   onChange: (value: FormValue) => void;
 };
 
@@ -20,6 +22,7 @@ export function CRUDFieldInput({
   id,
   value,
   categories,
+  disabled,
   onChange,
 }: CRUDFieldInputProps) {
   const { t } = useTranslation();
@@ -69,6 +72,10 @@ export function CRUDFieldInput({
           </Select.Content>
         </Select>
       );
+    case "readonly":
+      return (
+        <Input id={id} value={String(value)} readOnly className="font-mono" />
+      );
     case "category":
       return (
         <Select value={String(value) || undefined} onValueChange={onChange}>
@@ -89,6 +96,7 @@ export function CRUDFieldInput({
         <Input
           id={id}
           value={String(value)}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
           placeholder={field.placeholder}
         />

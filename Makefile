@@ -5,6 +5,15 @@ APP_SERVICES := backend-migrate backend backend-worker frontend
 # Лок next dev: держит процесс на любом порту (напр. -p 3123) и не даёт запустить второй в frontend/
 NEXT_DEV_KILL = pid=$$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' frontend/.next/dev/lock 2>/dev/null); \
 	[ -n "$$pid" ] && kill $$(ps -o ppid= -p $$pid) $$pid 2>/dev/null; true
+# Все dev-процессы Medusa и Next этого репозитория (по пути к node_modules), а не только слушающий порт:
+# `medusa develop` — наблюдатель и перезапускает убитый сервер. [m]/[n] — чтобы pkill не нашёл собственную команду
+DEV_PROCS = $(CURDIR)/backend/node_modules/.*[m]edusajs.cli|$(CURDIR)/frontend/node_modules/.*[n]ext/dist/bin/next
+# Сначала TERM и до 10 с на корректное завершение, затем KILL оставшимся и тем, кто ещё держит :9000/:3000
+DEV_KILL = pkill -f '$(DEV_PROCS)' 2>/dev/null; \
+	$(NEXT_DEV_KILL); \
+	for i in $$(seq 1 20); do pgrep -f '$(DEV_PROCS)' >/dev/null || break; sleep 0.5; done; \
+	pkill -9 -f '$(DEV_PROCS)' 2>/dev/null; \
+	for port in 9000 3000; do lsof -ti tcp:$$port -sTCP:LISTEN | xargs kill -9 2>/dev/null; done; true
 
 # --- Прод (Ansible): окружение = inventories/<INVENTORY>, TAG — тег образов (sha-<commit>), TAGS — теги ролей
 INVENTORY ?= production
@@ -24,7 +33,7 @@ ANSIBLE_VAULT := $(if $(or $(ANSIBLE_VAULT_PASSWORD),$(wildcard $(ANSIBLE_DIR)/.
 PLAYBOOK = cd $(ANSIBLE_DIR) && $(ANSIBLE_VAULT) ansible-playbook -i inventories/$(INVENTORY) $(if $(TAGS),--tags $(TAGS))
 
 .DEFAULT_GOAL := help
-.PHONY: help dev-install dev-up dev-down dev-restart api-generate test prod-up prod-down prod-restart \
+.PHONY: help dev-install dev-key dev-reset dev-up dev-down dev-restart api-generate test prod-up prod-down prod-restart \
 	infra-deps infra-vault infra-vault-edit infra-bootstrap infra-site infra-server infra-traefik infra-data \
 	deploy deploy-backend deploy-frontend pull pull-db pull-files infra-lint
 
@@ -40,12 +49,15 @@ dev-install: ## Первичная настройка: .env, зависимос�
 	$(COMPOSE) up -d --wait postgres redis mailpit
 	cd backend && pnpm db:migrate
 	@$(MAKE) --no-print-directory api-generate
-	@key=$$($(COMPOSE) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "select token from api_key where type = '\''publishable'\'' and revoked_at is null order by created_at limit 1"'); \
+	@$(MAKE) --no-print-directory dev-key
+	@echo "Готово. Админ Medusa: cd backend && pnpm user:create -e admin@example.com -p <пароль>"
+
+dev-key: ## Ключ витрины магазина olisa из БД → frontend/.env.local и devops/.env
+	@key=$$($(COMPOSE) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "select token from api_key where type = '\''publishable'\'' and revoked_at is null and title = '\''Витрина olisa'\'' order by created_at desc limit 1"'); \
 	if [ -z "$$key" ]; then \
-		echo "Publishable key не найден — создайте его в админке (Settings → Publishable API Keys)"; \
+		echo "Ключ магазина olisa не найден — сид не отработал? (cd backend && pnpm db:migrate)"; \
 	else \
 		for f in frontend/.env.local devops/.env; do \
-			if grep -q '^NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=.\+' $$f; then continue; fi; \
 			if grep -q '^NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=' $$f; then \
 				sed -i.bak "s|^NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=.*|NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=$$key|" $$f && rm -f $$f.bak; \
 			else \
@@ -54,11 +66,21 @@ dev-install: ## Первичная настройка: .env, зависимос�
 			echo "Publishable key записан в $$f"; \
 		done; \
 	fi
-	@echo "Готово. Админ Medusa: cd backend && pnpm user:create -e admin@example.com -p <пароль>"
+
+dev-reset: ## Dev с нуля: стоп серверов, БД и Redis пересоздаются, миграции + сид + демо-товары, ключ olisa (данные удаляются!)
+	@$(DEV_KILL)
+	$(COMPOSE) up -d --wait postgres redis mailpit
+	$(COMPOSE) exec -T postgres sh -c 'dropdb -U "$$POSTGRES_USER" --if-exists --force "$$POSTGRES_DB" && createdb -U "$$POSTGRES_USER" "$$POSTGRES_DB"'
+	@# Кэш Query, очереди событий и workflows Medusa в Redis относятся к старой БД — без сброса Store API отдаёт старые ответы
+	$(COMPOSE) exec -T redis redis-cli FLUSHALL
+	cd backend && pnpm db:migrate
+	cd backend && pnpm seed
+	@$(MAKE) --no-print-directory dev-key
+	@echo "Готово. Админ: cd backend && pnpm user:create -e admin@example.com -p <пароль>; затем make dev-up"
 
 dev-up: ## Postgres/Redis/Mailpit + генерация API + backend (:9000) и frontend (:3000); Ctrl+C — остановить
 	@$(COMPOSE) --profile app stop $(APP_SERVICES) 2>/dev/null || true
-	@$(NEXT_DEV_KILL)
+	@$(DEV_KILL)
 	$(COMPOSE) up -d --wait postgres redis mailpit
 	@$(MAKE) --no-print-directory api-generate
 	@trap 'kill 0' INT TERM EXIT; \
@@ -82,14 +104,13 @@ test: ## Тесты фронта: unit + integration против Medusa (под
 		(cd backend && pnpm dev >/dev/null 2>&1 &); \
 		for i in $$(seq 1 90); do curl -sf http://localhost:9000/health >/dev/null && break; sleep 1; done; \
 		(cd frontend && pnpm exec vitest run); status=$$?; \
-		lsof -ti tcp:9000 -sTCP:LISTEN | xargs kill 2>/dev/null; \
+		$(DEV_KILL); \
 		exit $$status; \
 	fi
 
 dev-down: ## Остановить контейнеры и dev-серверы :9000/:3000 (данные в volume сохраняются)
 	$(COMPOSE) --profile app down
-	@for port in 9000 3000; do lsof -ti tcp:$$port -sTCP:LISTEN | xargs kill 2>/dev/null || true; done
-	@$(NEXT_DEV_KILL)
+	@$(DEV_KILL)
 
 dev-restart: ## dev-down + dev-up
 	@$(MAKE) --no-print-directory dev-down

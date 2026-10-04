@@ -23459,11 +23459,11 @@
         }
       }
     },
-    "/store/site-settings": {
+    "/store/shop": {
       "get": {
-        "operationId": "GetSiteSettings",
-        "summary": "Реквизиты и контакты магазина",
-        "description": "Название, домен, юрлицо (ИНН/ОГРН/КПП), контакты, адрес и соцсети — для Organization в schema.org и подвала.",
+        "operationId": "GetShop",
+        "summary": "Магазин витрины и реквизиты сети",
+        "description": "Магазин publishable-ключа (название, домен, адрес витрины, логотип, контакты) и реквизиты сети (юрлицо, ИНН/ОГРН/КПП, адрес, контакты) — для подвала и Organization в schema.org. Ключ без магазина или выключенный магазин — 403.",
         "x-authenticated": false,
         "parameters": [
           {
@@ -23476,7 +23476,7 @@
           }
         ],
         "tags": [
-          "Site Settings"
+          "Shop"
         ],
         "responses": {
           "200": {
@@ -23486,21 +23486,24 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "site_settings"
+                    "shop"
                   ],
                   "properties": {
-                    "site_settings": {
+                    "shop": {
                       "type": "object",
                       "required": [
+                        "slug",
                         "name",
                         "domain",
                         "url",
-                        "legal",
+                        "logo_url",
                         "contacts",
-                        "address",
-                        "social_links"
+                        "network"
                       ],
                       "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
                         "name": {
                           "type": "string"
                         },
@@ -23510,91 +23513,84 @@
                         "url": {
                           "type": "string"
                         },
-                        "legal": {
-                          "type": "object",
-                          "required": [
-                            "name",
-                            "inn",
-                            "ogrn",
-                            "kpp",
-                            "address"
-                          ],
-                          "properties": {
-                            "name": {
-                              "type": "string"
-                            },
-                            "inn": {
-                              "type": "string"
-                            },
-                            "ogrn": {
-                              "type": "string"
-                            },
-                            "kpp": {
-                              "type": "string",
-                              "nullable": true
-                            },
-                            "address": {
-                              "type": "string"
-                            }
-                          }
+                        "logo_url": {
+                          "type": "string",
+                          "nullable": true
                         },
                         "contacts": {
                           "type": "object",
                           "required": [
                             "phone",
                             "email",
-                            "working_hours"
+                            "address"
                           ],
                           "properties": {
                             "phone": {
-                              "type": "string"
+                              "type": "string",
+                              "nullable": true
                             },
                             "email": {
-                              "type": "string"
+                              "type": "string",
+                              "nullable": true
                             },
-                            "working_hours": {
-                              "type": "string"
+                            "address": {
+                              "type": "string",
+                              "nullable": true
                             }
                           }
                         },
-                        "address": {
+                        "network": {
                           "type": "object",
                           "required": [
-                            "country_code",
-                            "postal_code",
-                            "city",
-                            "street"
+                            "name",
+                            "legal",
+                            "phone",
+                            "email"
                           ],
                           "properties": {
-                            "country_code": {
-                              "type": "string"
+                            "name": {
+                              "type": "string",
+                              "nullable": true
                             },
-                            "postal_code": {
-                              "type": "string"
-                            },
-                            "city": {
-                              "type": "string"
-                            },
-                            "street": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "social_links": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "required": [
-                              "name",
-                              "url"
-                            ],
-                            "properties": {
-                              "name": {
-                                "type": "string"
-                              },
-                              "url": {
-                                "type": "string"
+                            "legal": {
+                              "type": "object",
+                              "required": [
+                                "name",
+                                "inn",
+                                "ogrn",
+                                "kpp",
+                                "address"
+                              ],
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "inn": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "ogrn": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "kpp": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "address": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
                               }
+                            },
+                            "phone": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "email": {
+                              "type": "string",
+                              "nullable": true
                             }
                           }
                         }
@@ -23604,6 +23600,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Ключ не привязан к магазину или магазин выключен"
           }
         }
       }

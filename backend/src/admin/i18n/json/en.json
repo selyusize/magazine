@@ -157,6 +157,55 @@
       "filters": "JSON: filter code → values, e.g. { \"brand\": [\"nike\"] }. Codes — from Attributes, values — their slugs."
     }
   },
+  "shopSwitcher": {
+    "label": "Shop"
+  },
+  "networkSettings": {
+    "title": "Network details",
+    "description": "One legal entity for all shops: storefront footers, schema.org Organization, offer and receipts.",
+    "fields": {
+      "name": "Network name",
+      "legal_name": "Legal name",
+      "inn": "INN",
+      "ogrn": "OGRN / OGRNIP",
+      "kpp": "KPP",
+      "legal_address": "Legal address",
+      "phone": "Phone",
+      "email": "Email"
+    },
+    "hints": {
+      "inn": "10 digits for a company, 12 for a sole proprietor.",
+      "ogrn": "13 digits — OGRN, 15 — OGRNIP.",
+      "kpp": "9 digits; leave empty for a sole proprietor.",
+      "legal_address": "One line, as in the state register extract."
+    }
+  },
+  "shops": {
+    "title": "Shops",
+    "description": "A network of shops on one backend: each has its own storefront, domain, sales channel, publishable key and category tree.",
+    "createTitle": "New shop",
+    "editTitle": "Shop",
+    "empty": {
+      "title": "No shops yet",
+      "description": "Create a shop — it gets a sales channel, a publishable key and a root category."
+    },
+    "fields": {
+      "name": "Name",
+      "slug": "Slug",
+      "domain": "Domain",
+      "storefront_url": "Storefront URL",
+      "is_active": "Active",
+      "publishable_api_key": "Publishable key",
+      "settings": "Settings (JSON)"
+    },
+    "hints": {
+      "slug": "Latin letters, digits and hyphens. Prefix of the shop's product and category handles — cannot be changed later.",
+      "domain": "No protocol or path: olisa.ru.",
+      "is_active": "A disabled shop is not served by the Store API. Shops are never deleted: orders and customers stay.",
+      "publishable_api_key": "Put the key into the storefront's Ansible inventory (storefronts → publishable_key).",
+      "settings": "Contacts and logo: { \"contacts\": { \"phone\": \"…\", \"email\": \"…\" }, \"logo_url\": \"https://…\" }"
+    }
+  },
   "suppliers": {
     "title": "Suppliers",
     "description": "Dropshipping: catalog, purchase prices and stock come from suppliers, orders go to them. Each has its own virtual stock location.",

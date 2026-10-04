@@ -25,32 +25,23 @@ medusaIntegrationTestRunner({
       await initialDataSeed({ container: getContainer() });
 
       const query = getContainer().resolve(ContainerRegistrationKeys.QUERY);
-      // Medusa при старте создаёт свои канал и ключ с теми же названиями — берём те, что у склада сида
-      const { data: locations } = await query.graph({
-        entity: "stock_location",
-        fields: ["sales_channels.id"],
-        filters: { name: "Отгрузка" },
+      // Корзина — в магазине olisa из сида: его канал create-shop открыл складу с доставкой
+      const { data: shops } = await query.graph({
+        entity: "shop",
+        fields: ["sales_channel.id", "api_key.token"],
+        filters: { slug: "olisa" },
       });
-      const salesChannelId = locations[0].sales_channels![0]!.id;
-      const { data: keys } = await query.graph({
-        entity: "api_key",
-        fields: ["token", "sales_channels.id"],
-      });
+      const [olisa] = shops;
+      if (!olisa?.sales_channel || !olisa.api_key)
+        throw new Error("сид не создал магазин olisa с каналом и ключом");
+      const salesChannelId = olisa.sales_channel.id;
       const { data: regions } = await query.graph({
         entity: "region",
         fields: ["id"],
       });
-      headers = {
-        "x-publishable-api-key": keys.find((key) =>
-          key.sales_channels?.some((channel) => channel?.id === salesChannelId),
-        )!.token,
-      };
+      headers = { "x-publishable-api-key": olisa.api_key.token };
 
       // Способы доставки подбираются по профилям доставки товаров — нужна корзина с товаром
-      const { data: channels } = await query.graph({
-        entity: "sales_channel",
-        fields: ["id", "name"],
-      });
       const { data: profiles } = await query.graph({
         entity: "shipping_profile",
         fields: ["id"],
@@ -64,13 +55,7 @@ medusaIntegrationTestRunner({
               title: "Футболка",
               status: "draft",
               shipping_profile_id: profiles[0].id,
-              sales_channels: [
-                {
-                  id: channels.find(
-                    (channel) => channel.name === "Default Sales Channel",
-                  )!.id,
-                },
-              ],
+              sales_channels: [{ id: salesChannelId }],
               options: [{ title: "Размер", values: ["M"] }],
               variants: [
                 {

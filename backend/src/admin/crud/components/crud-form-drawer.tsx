@@ -35,7 +35,7 @@ export function CRUDFormDrawer({
           </Drawer.Header>
 
           <Drawer.Body className="flex flex-col gap-y-6 overflow-y-auto">
-            {resource.fields.map((field) => {
+            {form.fields.map((field) => {
               const id = `crud-${field.name}`;
               const hintKey = `${resource.i18n}.hints.${field.name}`;
               return (
@@ -49,6 +49,7 @@ export function CRUDFormDrawer({
                     id={id}
                     value={form.values[field.name]}
                     categories={form.categories}
+                    disabled={form.isLocked(field)}
                     onChange={(value) => form.setValue(field.name, value)}
                   />
                   {i18n.exists(hintKey) && <Hint>{t(hintKey)}</Hint>}

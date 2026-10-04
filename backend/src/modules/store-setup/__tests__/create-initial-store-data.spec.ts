@@ -112,9 +112,44 @@ medusaIntegrationTestRunner({
             option.service_zone.fulfillment_set.location.address.city,
           ).toBe("Москва");
         });
+
+        // Первый магазин — тем же workflow, что и кнопка в админке: ключ → канал → склад с доставкой
+        const { data: shops } = await graph("shop", [
+          "slug",
+          "root_category_id",
+          "sales_channel.id",
+          "api_key.token",
+          "api_key.sales_channels.id",
+        ]);
+        const olisa = shops.find((shop) => shop.slug === "olisa");
+        expect(olisa?.api_key?.token).toMatch(/^pk_/);
+        expect(olisa?.api_key?.sales_channels).toEqual([
+          expect.objectContaining({ id: olisa?.sales_channel?.id }),
+        ]);
+
+        // Склады поставщиков до шага 3 берут канал по умолчанию — это канал olisa
+        const { data: defaults } = await graph("store", [
+          "default_sales_channel_id",
+        ]);
+        expect(defaults.map((item) => item.default_sales_channel_id)).toContain(
+          olisa?.sales_channel?.id,
+        );
+
+        const { data: locations } = await graph("stock_location", [
+          "address.city",
+          "sales_channels.id",
+        ]);
+        const origin = locations.find(
+          (location) => location.address?.city === "Москва",
+        );
+        expect(origin?.sales_channels).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: olisa?.sales_channel?.id }),
+          ]),
+        );
       });
 
-      it("связывает ключ, канал продаж, склад отгрузки и перевозчиков", async () => {
+      it("связывает склад отгрузки с набором доставки и перевозчиками", async () => {
         const result = await Container.from(getContainer())
           .get(CreateInitialStoreDataHandler)
           .handle({
@@ -124,8 +159,6 @@ medusaIntegrationTestRunner({
             country_code: "ru",
             is_tax_inclusive: true,
             tax_rate: { name: "НДС 22%", code: "vat-22", rate: 22 },
-            sales_channel_name: "Канал",
-            publishable_api_key_title: "Ключ",
             shipping: {
               origin: {
                 name: "Склад",
@@ -145,31 +178,13 @@ medusaIntegrationTestRunner({
             },
           });
 
-        expect(result.publishable_api_key).toMatch(/^pk_/);
+        const { data: stores } = await graph("store", ["id"]);
+        expect(stores.map((store) => store.id)).toContain(result.store_id);
 
-        const { data: keys } = await graph("api_key", [
-          "token",
-          "sales_channels.id",
-        ]);
-        const key = keys.find(
-          (item) => item.token === result.publishable_api_key,
-        );
-        expect(key?.sales_channels).toEqual([
-          expect.objectContaining({ id: result.sales_channel_id }),
-        ]);
-
-        const { data: stores } = await graph("store", [
-          "id",
-          "default_sales_channel_id",
-        ]);
-        const store = stores.find((item) => item.id === result.store_id);
-        expect(store?.default_sales_channel_id).toBe(result.sales_channel_id);
-
-        // Без связей склад ↔ канал / набор доставки / провайдер витрина не увидит способов доставки
+        // Без связей склад ↔ набор доставки / провайдер витрина не увидит способов доставки; канал — у create-shop
         const { data: locations } = await graph("stock_location", [
           "id",
           "address.city",
-          "sales_channels.id",
           "fulfillment_sets.service_zones.shipping_options.id",
           "fulfillment_providers.id",
         ]);
@@ -177,9 +192,6 @@ medusaIntegrationTestRunner({
           (item) => item.id === result.stock_location_id,
         );
         expect(location?.address?.city).toBe("Казань");
-        expect(location?.sales_channels).toEqual([
-          expect.objectContaining({ id: result.sales_channel_id }),
-        ]);
         expect(location?.fulfillment_providers).toEqual([
           expect.objectContaining({ id: "cdek_cdek" }),
         ]);

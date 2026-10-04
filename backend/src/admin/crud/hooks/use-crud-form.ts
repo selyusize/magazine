@@ -2,11 +2,13 @@ import { toast } from "@medusajs/ui";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { CRUDResource, CRUDRow } from "../types";
+import type { CRUDField, CRUDResource, CRUDRow } from "../types";
 import { useCRUDApi } from "./crud-api";
 import {
   InvalidJSONError,
   isComplete,
+  isLocked,
+  isVisible,
   toFormValues,
   toRequestBody,
   type FormValue,
@@ -66,6 +68,8 @@ export function useCRUDForm(
   };
 
   return {
+    fields: resource.fields.filter((field) => isVisible(field, row !== null)),
+    isLocked: (field: CRUDField) => isLocked(field, row !== null),
     values,
     setValue: (name: string, value: FormValue) =>
       setValues((current) => ({ ...current, [name]: value })),

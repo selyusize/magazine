@@ -73,6 +73,18 @@ function toBodyValue(field: CRUDField, value: FormValue): unknown {
   return text;
 }
 
+/** Поле `createOnly` в форме изменения: заблокировано. */
+export const isLocked = (field: CRUDField, editing: boolean): boolean =>
+  editing && field.type === "text" && field.createOnly === true;
+
+/** Поле уходит в тело: показные — никогда, заблокированные — нет. */
+const isSent = (field: CRUDField, editing: boolean): boolean =>
+  field.type !== "readonly" && !isLocked(field, editing);
+
+/** Поле есть в форме: показные — только у существующей записи. */
+export const isVisible = (field: CRUDField, editing: boolean): boolean =>
+  field.type !== "readonly" || editing;
+
 /**
  * Тело запроса. Создание — все заполненные поля (пустой handle не шлём: бэкенд сделает его из названия).
  * Изменение — только изменённые поля: так переименование не трогает адрес, а очищенный handle (`""`)
@@ -85,6 +97,7 @@ export function toRequestBody(
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   for (const field of fields) {
+    if (!isSent(field, initial !== null)) continue;
     const value = values[field.name];
     if (initial && value === initial[field.name]) continue;
 

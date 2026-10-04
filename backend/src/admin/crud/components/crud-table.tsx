@@ -112,13 +112,15 @@ export function CRUDTable(props: CRUDTableProps) {
                       <PencilSquare className="text-ui-fg-subtle" />
                       {t("crud.edit")}
                     </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      className="gap-x-2"
-                      onClick={() => props.onDelete(row)}
-                    >
-                      <Trash className="text-ui-fg-subtle" />
-                      {t("crud.delete.action")}
-                    </DropdownMenu.Item>
+                    {resource.canDelete !== false && (
+                      <DropdownMenu.Item
+                        className="gap-x-2"
+                        onClick={() => props.onDelete(row)}
+                      >
+                        <Trash className="text-ui-fg-subtle" />
+                        {t("crud.delete.action")}
+                      </DropdownMenu.Item>
+                    )}
                   </DropdownMenu.Content>
                 </DropdownMenu>
               </Table.Cell>

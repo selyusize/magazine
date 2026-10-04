@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { sdk } from "../../lib/sdk";
+import { adminFetch } from "../../lib/admin-fetch";
 
 /** Поставщик для страницы импорта: настройки обмена хранятся в `exchange`, наценка — в `markup`. */
 export type ExchangeSupplier = {
@@ -11,7 +11,8 @@ export type ExchangeSupplier = {
   markup: Record<string, unknown>;
 };
 
-export type ImportRunStatus = "receiving" | "queued" | "running" | "done" | "failed";
+export type ImportRunStatus =
+  "receiving" | "queued" | "running" | "done" | "failed";
 
 export type ImportRun = {
   id: string;
@@ -63,7 +64,9 @@ export type ExchangeReview = {
 
 /** Запуск ещё идёт — список и карточку обновляем, пока не закончится. */
 export const isActiveRun = (run: Pick<ImportRun, "status">) =>
-  run.status === "receiving" || run.status === "queued" || run.status === "running";
+  run.status === "receiving" ||
+  run.status === "queued" ||
+  run.status === "running";
 
 const POLL_MS = 3000;
 const KEY = ["admin-exchange"] as const;
@@ -72,33 +75,49 @@ export function useExchangeSuppliers() {
   return useQuery({
     queryKey: [...KEY, "suppliers"],
     queryFn: () =>
-      sdk.client.fetch<{ suppliers: ExchangeSupplier[] }>("/admin/suppliers", {
+      adminFetch<{ suppliers: ExchangeSupplier[] }>("/admin/suppliers", {
         query: { limit: 100 },
       }),
     select: (data) => data.suppliers,
   });
 }
 
-export function useImportRuns(params: { supplier_id: string | null; limit: number; offset: number }) {
+export function useImportRuns(params: {
+  supplier_id: string | null;
+  limit: number;
+  offset: number;
+}) {
   return useQuery({
     queryKey: [...KEY, "runs", params],
     queryFn: () =>
-      sdk.client.fetch<{ import_runs: ImportRun[]; count: number }>("/admin/import-runs", {
-        query: { supplier_id: params.supplier_id ?? undefined, limit: params.limit, offset: params.offset },
-      }),
+      adminFetch<{ import_runs: ImportRun[]; count: number }>(
+        "/admin/import-runs",
+        {
+          query: {
+            supplier_id: params.supplier_id ?? undefined,
+            limit: params.limit,
+            offset: params.offset,
+          },
+        },
+      ),
     enabled: Boolean(params.supplier_id),
     placeholderData: (previous) => previous,
-    refetchInterval: (query) => (query.state.data?.import_runs.some(isActiveRun) ? POLL_MS : false),
+    refetchInterval: (query) =>
+      query.state.data?.import_runs.some(isActiveRun) ? POLL_MS : false,
   });
 }
 
 export function useImportRun(id: string | null) {
   return useQuery({
     queryKey: [...KEY, "run", id],
-    queryFn: () => sdk.client.fetch<{ import_run: ImportRun }>(`/admin/import-runs/${id}`),
+    queryFn: () =>
+      adminFetch<{ import_run: ImportRun }>(`/admin/import-runs/${id}`),
     select: (data) => data.import_run,
     enabled: Boolean(id),
-    refetchInterval: (query) => (query.state.data && isActiveRun(query.state.data.import_run) ? POLL_MS : false),
+    refetchInterval: (query) =>
+      query.state.data && isActiveRun(query.state.data.import_run)
+        ? POLL_MS
+        : false,
   });
 }
 
@@ -106,7 +125,9 @@ export function useExchangeGroups(supplierId: string | null) {
   return useQuery({
     queryKey: [...KEY, "groups", supplierId],
     queryFn: () =>
-      sdk.client.fetch<{ exchange_groups: ExchangeGroup[] }>(`/admin/suppliers/${supplierId}/exchange-groups`),
+      adminFetch<{ exchange_groups: ExchangeGroup[] }>(
+        `/admin/suppliers/${supplierId}/exchange-groups`,
+      ),
     select: (data) => data.exchange_groups,
     enabled: Boolean(supplierId),
   });
@@ -116,7 +137,7 @@ export function useExchangeProperties(supplierId: string | null) {
   return useQuery({
     queryKey: [...KEY, "properties", supplierId],
     queryFn: () =>
-      sdk.client.fetch<{ exchange_properties: ExchangeProperty[] }>(
+      adminFetch<{ exchange_properties: ExchangeProperty[] }>(
         `/admin/suppliers/${supplierId}/exchange-properties`,
       ),
     select: (data) => data.exchange_properties,
@@ -124,13 +145,20 @@ export function useExchangeProperties(supplierId: string | null) {
   });
 }
 
-export function useExchangeReview(params: { supplier_id: string | null; limit: number; offset: number }) {
+export function useExchangeReview(params: {
+  supplier_id: string | null;
+  limit: number;
+  offset: number;
+}) {
   return useQuery({
     queryKey: [...KEY, "review", params],
     queryFn: () =>
-      sdk.client.fetch<ExchangeReview>(`/admin/suppliers/${params.supplier_id}/exchange-review`, {
-        query: { limit: params.limit, offset: params.offset },
-      }),
+      adminFetch<ExchangeReview>(
+        `/admin/suppliers/${params.supplier_id}/exchange-review`,
+        {
+          query: { limit: params.limit, offset: params.offset },
+        },
+      ),
     enabled: Boolean(params.supplier_id),
     placeholderData: (previous) => previous,
   });
@@ -141,14 +169,19 @@ export function useAttributeOptions() {
   return useQuery({
     queryKey: [...KEY, "attributes"],
     queryFn: () =>
-      sdk.client.fetch<{ attributes: { id: string; name: string }[] }>("/admin/attributes", {
-        query: { limit: 100 },
-      }),
+      adminFetch<{ attributes: { id: string; name: string }[] }>(
+        "/admin/attributes",
+        {
+          query: { limit: 100 },
+        },
+      ),
     select: (data) => data.attributes,
   });
 }
 
-function useExchangeMutation<TInput, TResult>(mutationFn: (input: TInput) => Promise<TResult>) {
+function useExchangeMutation<TInput, TResult>(
+  mutationFn: (input: TInput) => Promise<TResult>,
+) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
@@ -157,23 +190,32 @@ function useExchangeMutation<TInput, TResult>(mutationFn: (input: TInput) => Pro
 }
 
 export const useSaveExchangeSettings = () =>
-  useExchangeMutation((input: { supplier_id: string; body: Record<string, unknown> }) =>
-    sdk.client.fetch(`/admin/suppliers/${input.supplier_id}`, { method: "POST", body: input.body }),
+  useExchangeMutation(
+    (input: { supplier_id: string; body: Record<string, unknown> }) =>
+      adminFetch(`/admin/suppliers/${input.supplier_id}`, {
+        method: "POST",
+        body: input.body,
+      }),
   );
 
 export const usePullSupplier = () =>
   useExchangeMutation((supplierId: string) =>
-    sdk.client.fetch<{ import_run: ImportRun }>(`/admin/suppliers/${supplierId}/import-runs`, { method: "POST" }),
+    adminFetch<{ import_run: ImportRun }>(
+      `/admin/suppliers/${supplierId}/import-runs`,
+      { method: "POST" },
+    ),
   );
 
 export const useRetryImportRun = () =>
   useExchangeMutation((id: string) =>
-    sdk.client.fetch<{ import_run: ImportRun }>(`/admin/import-runs/${id}/retry`, { method: "POST" }),
+    adminFetch<{ import_run: ImportRun }>(`/admin/import-runs/${id}/retry`, {
+      method: "POST",
+    }),
   );
 
 export const useMapExchangeGroup = () =>
   useExchangeMutation((input: { id: string; category_id: string | null }) =>
-    sdk.client.fetch(`/admin/exchange-groups/${input.id}`, {
+    adminFetch(`/admin/exchange-groups/${input.id}`, {
       method: "POST",
       body: { category_id: input.category_id },
     }),
@@ -181,7 +223,7 @@ export const useMapExchangeGroup = () =>
 
 export const useMapExchangeProperty = () =>
   useExchangeMutation((input: { id: string; attribute_id: string | null }) =>
-    sdk.client.fetch(`/admin/exchange-properties/${input.id}`, {
+    adminFetch(`/admin/exchange-properties/${input.id}`, {
       method: "POST",
       body: { attribute_id: input.attribute_id },
     }),

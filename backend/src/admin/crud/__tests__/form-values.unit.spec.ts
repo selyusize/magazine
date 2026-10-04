@@ -1,6 +1,8 @@
 import {
   InvalidJSONError,
   isComplete,
+  isLocked,
+  isVisible,
   toFormValues,
   toRequestBody,
 } from "../hooks/form-values";
@@ -114,5 +116,53 @@ describe("форма CRUD-раздела", () => {
     expect(
       isComplete(FIELDS, { ...toFormValues(FIELDS, null), title: "X" }),
     ).toBe(true);
+  });
+});
+
+describe("поля только для создания и только для показа", () => {
+  const SHOP_FIELDS: CRUDField[] = [
+    { name: "slug", type: "text", required: true, createOnly: true },
+    { name: "name", type: "text", required: true },
+    { name: "publishable_api_key", type: "readonly" },
+  ];
+  const row = {
+    id: "shop_1",
+    slug: "olisa",
+    name: "Olisa",
+    publishable_api_key: "pk_1",
+  };
+
+  it("создание: slug уходит, показное поле — нет и скрыто", () => {
+    const values = {
+      ...toFormValues(SHOP_FIELDS, null),
+      slug: "snow",
+      name: "Snow",
+    };
+    expect(toRequestBody(SHOP_FIELDS, values, null)).toEqual({
+      slug: "snow",
+      name: "Snow",
+    });
+    expect(
+      SHOP_FIELDS.filter((field) => isVisible(field, false)).map(
+        (field) => field.name,
+      ),
+    ).toEqual(["slug", "name"]);
+  });
+
+  it("изменение: slug заблокирован и не уходит, даже если значение поменялось", () => {
+    const initial = toFormValues(SHOP_FIELDS, row);
+    expect(initial.publishable_api_key).toBe("pk_1");
+    expect(isLocked(SHOP_FIELDS[0], true)).toBe(true);
+    expect(isLocked(SHOP_FIELDS[0], false)).toBe(false);
+
+    const values = {
+      ...initial,
+      slug: "other",
+      name: "Olisa 2",
+      publishable_api_key: "pk_2",
+    };
+    expect(toRequestBody(SHOP_FIELDS, values, initial)).toEqual({
+      name: "Olisa 2",
+    });
   });
 });

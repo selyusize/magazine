@@ -1,9 +1,11 @@
 import type { MedusaContainer } from "@medusajs/framework/types";
 import { Modules } from "@medusajs/framework/utils";
-import {
-  createApiKeysWorkflow,
-  createUserAccountWorkflow,
-} from "@medusajs/medusa/core-flows";
+import { createUserAccountWorkflow } from "@medusajs/medusa/core-flows";
+
+import { Container } from "../../../src/container";
+import type { CreateShopCommand } from "../../../src/modules/shop/command/create-shop/command";
+import type { CreatedShopDTO } from "../../../src/modules/shop/command/create-shop/dto";
+import { CreateShopHandler } from "../../../src/modules/shop/command/create-shop/handler";
 
 type API = {
   post: (
@@ -13,18 +15,36 @@ type API = {
   ) => Promise<{ data: { token: string } }>;
 };
 
-/** Заголовок с publishable-ключом для Store API. */
+let shopCounter = 0;
+
+/**
+ * Магазин для Store API: ключ без магазина Store API не пускает (403), поэтому — через `create-shop`, как кнопка в
+ * админке. Slug уникален в пределах прогона файла.
+ */
+export async function createTestShop(
+  container: MedusaContainer,
+  data: Partial<CreateShopCommand> = {},
+): Promise<CreatedShopDTO> {
+  shopCounter += 1;
+  const slug = data.slug ?? `test-${shopCounter}-${Date.now().toString(36)}`;
+  return Container.from(container)
+    .get(CreateShopHandler)
+    .handle({
+      slug,
+      name: `Тест ${slug}`,
+      domain: `${slug}.test.local`,
+      storefront_url: `https://${slug}.test.local`,
+      settings: {},
+      ...data,
+    });
+}
+
+/** Заголовок с publishable-ключом нового магазина для Store API. */
 export async function storeHeaders(
   container: MedusaContainer,
 ): Promise<Record<string, string>> {
-  const {
-    result: [apiKey],
-  } = await createApiKeysWorkflow(container).run({
-    input: {
-      api_keys: [{ title: "Test", type: "publishable", created_by: "" }],
-    },
-  });
-  return { "x-publishable-api-key": apiKey.token };
+  const shop = await createTestShop(container);
+  return { "x-publishable-api-key": shop.publishable_api_key ?? "" };
 }
 
 /** Админ через обычный вход по email/паролю — заголовок с его JWT для Admin API. */

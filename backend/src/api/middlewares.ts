@@ -3,16 +3,19 @@ import {
   defineMiddlewares,
 } from "@medusajs/framework/http";
 
+import { shopContextMiddleware } from "./middlewares/shop-context";
 import { exchangeWith1CMiddleware } from "./1c/exchange/[supplier]/middleware";
 import { adminArticlesMiddleware } from "./admin/articles/middleware";
 import { adminAttributesMiddleware } from "./admin/attributes/middleware";
 import { adminBrandsMiddleware } from "./admin/brands/middleware";
+import { adminNetworkSettingsMiddleware } from "./admin/network-settings/middleware";
 import { adminFilterPagesMiddleware } from "./admin/filter-pages/middleware";
 import { adminExchangeMiddleware } from "./admin/import-runs/middleware";
 import { adminProductAttributesMiddleware } from "./admin/products/[id]/attributes/middleware";
 import { adminProductCatalogMiddleware } from "./admin/products/[id]/catalog/middleware";
 import { adminRedirectsMiddleware } from "./admin/redirects/middleware";
 import { adminRedirectsImportMiddleware } from "./admin/redirects/import/middleware";
+import { adminShopsMiddleware } from "./admin/shops/middleware";
 import { adminSupplierOffersMiddleware } from "./admin/supplier-offers/middleware";
 import { adminSuppliersMiddleware } from "./admin/suppliers/middleware";
 import { storeDeliveryPointsMiddleware } from "./store/delivery/points/middleware";
@@ -20,6 +23,8 @@ import { storeRedirectsResolveMiddleware } from "./store/redirects/resolve/middl
 
 export default defineMiddlewares({
   routes: [
+    // Первыми: магазин запроса и CORS нужны всем остальным роутам
+    ...shopContextMiddleware,
     // The product index declares filterable `status` and `sales_channel_ids`, so
     // the route narrows it to published products in the key's sales channels.
     {
@@ -36,6 +41,8 @@ export default defineMiddlewares({
     ...exchangeWith1CMiddleware,
     ...storeDeliveryPointsMiddleware,
     ...storeRedirectsResolveMiddleware,
+    ...adminShopsMiddleware,
+    ...adminNetworkSettingsMiddleware,
     ...adminRedirectsMiddleware,
     ...adminRedirectsImportMiddleware,
     ...adminBrandsMiddleware,

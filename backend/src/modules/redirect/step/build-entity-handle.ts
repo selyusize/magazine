@@ -2,8 +2,13 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
 import { SLUG_PATTERN, toSlug, toUniqueSlug } from "@shared/service/slug/slug";
+import { splitStoredHandle, toStoredHandle } from "@shared/shop/shop-slug";
 
-import { toURLEntityRows, URL_ENTITIES, type URLEntityType } from "../service/path";
+import {
+  toURLEntityRows,
+  URL_ENTITIES,
+  type URLEntityType,
+} from "../service/path";
 
 export type EntityHandle = {
   /** Сущность уже удалена — синхронизировать нечего. */
@@ -43,7 +48,11 @@ export const buildEntityHandleStep = createStep(
       });
 
     const handle = String(row.handle ?? "");
-    if (!config.renamable || SLUG_PATTERN.test(handle))
+    // Префикс магазина (`olisa--`) не трогаем: slug — только часть после него, иначе `--` схлопнется в `-`
+    const stored = splitStoredHandle(handle);
+    const withShop = (slug: string): string =>
+      stored.shop ? toStoredHandle({ shop: stored.shop, handle: slug }) : slug;
+    if (!config.renamable || SLUG_PATTERN.test(stored.handle))
       return new StepResponse<EntityHandle>({
         found: true,
         handle,
@@ -52,14 +61,14 @@ export const buildEntityHandleStep = createStep(
       });
 
     const base =
-      toSlug(handle) ||
+      toSlug(stored.handle) ||
       toSlug(String(row[config.title] ?? "")) ||
       `${config.prefix}-${command.entity_id.slice(-6).toLowerCase()}`;
-    const nextHandle = await toUniqueSlug(base, async (candidate) => {
+    const nextSlug = await toUniqueSlug(base, async (candidate) => {
       const { data: taken } = await query.graph({
         entity: config.entity,
         fields: ["id"],
-        filters: { handle: candidate },
+        filters: { handle: withShop(candidate) },
       });
       return taken.some((item) => item.id !== command.entity_id);
     });
@@ -67,7 +76,7 @@ export const buildEntityHandleStep = createStep(
     return new StepResponse<EntityHandle>({
       found: true,
       handle,
-      next_handle: nextHandle,
+      next_handle: withShop(nextSlug),
       path: null,
     });
   },

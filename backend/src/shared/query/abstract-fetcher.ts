@@ -30,12 +30,15 @@ export abstract class AbstractFetcher<
    * Данные внешних API (ПВЗ перевозчиков, справочники) — из кэша Medusa в Redis, иначе `load()` и в кэш на `ttl` секунд.
    * Без Redis модуля кэша нет — всегда `load()`. Данные своих сущностей кэшируем через `graph(..., { cache })`.
    * Значение из кэша проверяется `schema`: не подошло (формат поменялся с прошлой версии) — загружается заново.
+   * Кэш своих данных — с `tags`: их сбрасывает реестр инвалидации по событию изменения (`container/common/cache.ts`),
+   * `ttl` — только страховка.
    */
   protected async cached<S extends z.ZodType<object>>(
     key: string,
     ttl: number,
     schema: S,
     load: () => Promise<z.infer<S>>,
+    tags?: string[],
   ): Promise<z.infer<S>> {
     const cache = this.container.resolve<ICachingModuleService | undefined>(
       Modules.CACHING,
@@ -49,7 +52,12 @@ export abstract class AbstractFetcher<
     if (hit.success) return hit.data;
 
     const data = await load();
-    await cache.set({ key, data, ttl });
+    // Без своих тегов Medusa вычисляет их из данных и сбрасывает по своим событиям — для своих тегов это не нужно
+    await cache.set(
+      tags
+        ? { key, data, ttl, tags, options: { autoInvalidate: false } }
+        : { key, data, ttl },
+    );
     return data;
   }
 

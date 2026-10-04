@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { sdk } from "../../lib/sdk";
+import { adminFetch } from "../../lib/admin-fetch";
 
 export const REDIRECT_CODES = [301, 302, 410] as const;
 export type RedirectCode = (typeof REDIRECT_CODES)[number];
@@ -38,7 +38,7 @@ export function useRedirects(params: {
   return useQuery({
     queryKey: [...REDIRECTS_KEY, params],
     queryFn: () =>
-      sdk.client.fetch<RedirectsPage>("/admin/redirects", {
+      adminFetch<RedirectsPage>("/admin/redirects", {
         query: {
           q: params.q || undefined,
           limit: params.limit,
@@ -61,7 +61,7 @@ function useRedirectsMutation<TInput, TResult>(
 
 export const useSaveRedirect = () =>
   useRedirectsMutation((body: RedirectInput) =>
-    sdk.client.fetch<{ redirect: AdminRedirect }>("/admin/redirects", {
+    adminFetch<{ redirect: AdminRedirect }>("/admin/redirects", {
       method: "POST",
       body,
     }),
@@ -69,12 +69,12 @@ export const useSaveRedirect = () =>
 
 export const useDeleteRedirect = () =>
   useRedirectsMutation((id: string) =>
-    sdk.client.fetch(`/admin/redirects/${id}`, { method: "DELETE" }),
+    adminFetch(`/admin/redirects/${id}`, { method: "DELETE" }),
   );
 
 export const useImportRedirects = () =>
   useRedirectsMutation((csv: string) =>
-    sdk.client.fetch<{ count: number }>("/admin/redirects/import", {
+    adminFetch<{ count: number }>("/admin/redirects/import", {
       method: "POST",
       body: { csv },
     }),

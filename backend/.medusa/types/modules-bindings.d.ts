@@ -25,6 +25,7 @@ import type { IWorkflowEngineService } from '@medusajs/framework/types'
 import type { ILockingModule } from '@medusajs/framework/types'
 import type { IFileModuleService } from '@medusajs/framework/types'
 import type { ICachingModuleService } from '@medusajs/framework/types'
+import type Shop from '../../src/modules/shop'
 import type Redirect from '../../src/modules/redirect'
 import type Brand from '../../src/modules/brand'
 import type Content from '../../src/modules/content'
@@ -63,6 +64,7 @@ declare module '@medusajs/framework/types' {
     'locking': ILockingModule,
     'file': IFileModuleService,
     'caching': ICachingModuleService,
+    'shop': InstanceType<(typeof Shop)['service']>,
     'redirect': InstanceType<(typeof Redirect)['service']>,
     'brand': InstanceType<(typeof Brand)['service']>,
     'content': InstanceType<(typeof Content)['service']>,

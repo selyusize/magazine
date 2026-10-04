@@ -5,7 +5,7 @@ import type { CreateInitialStoreDataCommand } from "./command";
 import type { InitialStoreDataDTO } from "./dto";
 import { createInitialStoreDataWorkflow } from "./workflow";
 
-/** Создаёт магазин под РФ при первом `db:migrate` — вызывается из src/migration-scripts/initial-data-seed.ts. */
+/** Общая настройка сети под РФ при первом `db:migrate` — вызывается из src/migration-scripts/initial-data-seed.ts. */
 @Injectable()
 export class CreateInitialStoreDataHandler extends AbstractCommandHandler<
   CreateInitialStoreDataCommand,

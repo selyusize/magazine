@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { sdk } from "../../lib/sdk";
+import { adminFetch } from "../../lib/admin-fetch";
 
 type Named = { id: string; name: string; handle: string };
 
@@ -23,7 +23,7 @@ export function useProductCatalog(productId: string) {
   return useQuery({
     queryKey: catalogKey(productId),
     queryFn: () =>
-      sdk.client.fetch<{ catalog: ProductCatalog }>(
+      adminFetch<{ catalog: ProductCatalog }>(
         `/admin/products/${productId}/catalog`,
       ),
     select: (data) => data.catalog,
@@ -35,7 +35,7 @@ export function useBrandOptions() {
   return useQuery({
     queryKey: ["admin-product-catalog-brands"],
     queryFn: () =>
-      sdk.client.fetch<{ brands: Named[] }>("/admin/brands", {
+      adminFetch<{ brands: Named[] }>("/admin/brands", {
         query: { limit: 100 },
       }),
     select: (data) => data.brands,
@@ -46,7 +46,7 @@ export function useSaveProductCatalog(productId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: ProductCatalogInput) =>
-      sdk.client.fetch<{ catalog: ProductCatalog }>(
+      adminFetch<{ catalog: ProductCatalog }>(
         `/admin/products/${productId}/catalog`,
         { method: "POST", body },
       ),

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { sdk } from "../../lib/sdk";
+import { adminFetch } from "../../lib/admin-fetch";
 
 type Category = { id: string; name: string; handle: string };
 
@@ -9,7 +9,7 @@ export function useCategoryOptions(enabled: boolean) {
   return useQuery({
     queryKey: ["admin-crud-categories"],
     queryFn: () =>
-      sdk.client.fetch<{ product_categories: Category[] }>(
+      adminFetch<{ product_categories: Category[] }>(
         "/admin/product-categories",
         {
           query: { fields: "id,name,handle", limit: 1000 },

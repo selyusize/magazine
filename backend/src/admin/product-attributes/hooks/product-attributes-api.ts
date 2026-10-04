@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { AttributeType } from "../../attributes/types";
-import { sdk } from "../../lib/sdk";
+import { adminFetch } from "../../lib/admin-fetch";
 
 export type Attribute = {
   id: string;
@@ -26,7 +26,7 @@ export function useAttributes() {
   return useQuery({
     queryKey: ["admin-attributes-all"],
     queryFn: () =>
-      sdk.client.fetch<{ attributes: Attribute[] }>("/admin/attributes", {
+      adminFetch<{ attributes: Attribute[] }>("/admin/attributes", {
         query: { limit: 100 },
       }),
     select: (data) => data.attributes,
@@ -37,7 +37,7 @@ export function useProductAttributeValues(productId: string) {
   return useQuery({
     queryKey: valuesKey(productId),
     queryFn: () =>
-      sdk.client.fetch<{ attribute_values: AttributeValue[] }>(
+      adminFetch<{ attribute_values: AttributeValue[] }>(
         `/admin/products/${productId}/attributes`,
       ),
     select: (data) => data.attribute_values,
@@ -49,7 +49,7 @@ export function useSaveProductAttributeValues(productId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (values: { attribute_id: string; value: string }[]) =>
-      sdk.client.fetch<{ attribute_values: AttributeValue[] }>(
+      adminFetch<{ attribute_values: AttributeValue[] }>(
         `/admin/products/${productId}/attributes`,
         { method: "POST", body: { variant_id: null, values } },
       ),

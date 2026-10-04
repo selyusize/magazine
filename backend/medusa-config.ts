@@ -14,6 +14,13 @@ import { imageConfig } from "./src/container/common/image";
 
 const redisUrl = process.env.REDIS_URL;
 
+/**
+ * Статический CORS Medusa для `/store` и `/auth` пропускает любой источник, иначе preflight с домена нового
+ * магазина отклонялся бы до наших middleware. Проверяет источник CheckRequestOriginMiddleware: STORE_CORS и
+ * AUTH_CORS плюс домены витрин из таблицы shop (src/container/common/cors.ts).
+ */
+const ANY_ORIGIN = "/.*/";
+
 const WORKER_MODES = ["shared", "worker", "server"] as const;
 
 /** Режим процесса из env; пусто или опечатка — `shared` (всё в одном процессе, dev). */
@@ -127,9 +134,9 @@ module.exports = defineConfig({
     // shared — всё в одном процессе (dev); server — HTTP API; worker — подписчики, jobs, workflows
     workerMode: workerMode(process.env.MEDUSA_WORKER_MODE),
     http: {
-      storeCors: process.env.STORE_CORS!,
+      storeCors: ANY_ORIGIN,
       adminCors: process.env.ADMIN_CORS!,
-      authCors: process.env.AUTH_CORS!,
+      authCors: ANY_ORIGIN,
       jwtSecret: process.env.JWT_SECRET,
       // Срок жизни JWT покупателя; витрина продлевает его, пока покупатель активен
       jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1d",
@@ -145,6 +152,7 @@ module.exports = defineConfig({
     ...redisModules,
     ...fileModules,
     ...fulfillmentModules,
+    { resolve: "./src/modules/shop" },
     { resolve: "./src/modules/redirect" },
     { resolve: "./src/modules/brand" },
     { resolve: "./src/modules/content" },
