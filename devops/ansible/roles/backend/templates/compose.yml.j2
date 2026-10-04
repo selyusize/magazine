@@ -18,6 +18,23 @@ services:
     networks:
       - internal
 
+  # Разовые команды (make backend-exec / backend-user / backend-seed): тот же образ и env, что у worker,
+  # с volumes загрузок, обмена и логов и выходом в интернет (pull поставщиков)
+  backend-tools:
+    <<: *backend
+    profiles: [tools]
+    restart: "no"
+    environment:
+      MEDUSA_WORKER_MODE: worker
+      DISABLE_MEDUSA_ADMIN: "true"
+    volumes:
+      - uploads:/app/static
+      - exchange:/app/exchange
+      - logs:/app/logs
+    networks:
+      - internal
+      - proxy
+
   # Store/Admin API и админка /app. Обновляется скриптом compose-rollout без простоя;
   # container_name нельзя (при выкате работают два контейнера) — имя {{ backend_host }} ставит скрипт
   backend:
@@ -65,7 +82,7 @@ services:
   # Подписчики, scheduled jobs, фоновые workflows; в proxy — ради выхода в интернет (платёжки, доставка)
   backend-worker:
     <<: *backend
-    container_name: {{ project_name }}-backend-worker
+    container_name: {{ backend_worker_host }}
     environment:
       MEDUSA_WORKER_MODE: worker
       DISABLE_MEDUSA_ADMIN: "true"

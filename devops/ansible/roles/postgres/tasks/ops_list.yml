@@ -1,0 +1,15 @@
+# Бэкапы PostgreSQL на сервере: make db-backups
+- name: Бэкапы на сервере
+  ansible.builtin.find:
+    paths: "{{ backup_dir }}/postgres"
+    patterns: "*.dump"
+  register: postgres_backups
+
+- name: Показать бэкапы
+  ansible.builtin.debug:
+    msg: >-
+      {{ postgres_backups.files | sort(attribute='mtime', reverse=true)
+      | map(attribute='path') | map('basename')
+      | zip(postgres_backups.files | sort(attribute='mtime', reverse=true)
+            | map(attribute='size') | map('filesize'))
+      | map('join', '  ') | list or ['Бэкапов нет'] }}

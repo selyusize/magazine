@@ -1,17 +1,19 @@
-# Первый неотозванный publishable key Medusa (создаётся initial-data-seed при первой миграции).
+# Publishable key магазина storefront_slug: сид и кнопка «Создать магазин» называют ключ «Витрина <slug>».
 # Подключается и из playbooks/frontend-build-args.yml: ключ вшивается в бандл фронта при сборке.
 - name: Найти publishable key в БД
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
       docker exec
-      "$(docker ps -q --filter label=com.docker.compose.project={{ project_name }}-postgres
-      --filter label=com.docker.compose.service=postgres | head -n1)"
+      {{ postgres_host }}
       psql -U {{ postgres_user | quote }} -d {{ postgres_db | quote }} -tAc
-      "select token from api_key where type = 'publishable' and revoked_at is null order by created_at limit 1"
+      "select token from api_key where type = 'publishable' and revoked_at is null
+      and title = 'Витрина {{ storefront_slug }}' order by created_at desc limit 1"
     executable: /bin/bash
   register: backend_publishable_key_query
   changed_when: false
+  # Только чтение — выполняется и в --check
+  check_mode: false
 
 - name: Запомнить publishable key
   ansible.builtin.set_fact:

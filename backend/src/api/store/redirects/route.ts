@@ -7,7 +7,7 @@ import { GetRedirectsForStorefrontAction } from "@domain/redirect/action/get-red
  * @oas [get] /store/redirects
  * operationId: GetRedirects
  * summary: Все редиректы витрины
- * description: Таблица целиком — витрина держит её у себя и редиректит без запроса на каждый путь. Цепочек нет.
+ * description: Таблица магазина ключа целиком — витрина держит её у себя и редиректит без запроса на каждый путь. Цепочек нет.
  * x-authenticated: false
  * parameters:
  *   - name: x-publishable-api-key

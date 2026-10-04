@@ -17,4 +17,9 @@ export const env = {
    * Не задан — берётся первый регион магазина (GET /store/regions, кешируется).
    */
   regionId: process.env.MEDUSA_REGION_ID ?? "",
+  /**
+   * Секрет вебхука ревалидации `POST /api/revalidate` — только на сервере, читается в рантайме. Тот же, что у
+   * магазина в админке Medusa («Обновление витрины»); пусто — вебхук отклоняется (401), кэш живёт по TTL.
+   */
+  revalidateSecret: process.env.REVALIDATE_SECRET ?? "",
 } as const;

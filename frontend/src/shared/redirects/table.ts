@@ -4,13 +4,30 @@ import { getRedirects, type GetRedirects200RedirectsItem } from "@shared/api";
 
 export type RedirectRule = GetRedirects200RedirectsItem;
 
-/** Сколько таблица живёт в памяти: правка в админке доходит до витрины за это время. */
+/**
+ * Страховка: сколько таблица живёт в памяти, если вебхук ревалидации (тег `redirects`) не дошёл. Обычно правка в
+ * админке доходит до витрины за секунды — через `invalidateRedirectRules`.
+ */
 export const REDIRECTS_TTL_MS = 60_000;
 /** Бэкенд недоступен — повторяем не на каждом запросе, а с паузой. */
 const RETRY_MS = 5_000;
 
-let cached: { rules: Map<string, RedirectRule>; expiresAt: number } | null = null;
-let loading: Promise<Map<string, RedirectRule>> | null = null;
+type Table = {
+  cached: { rules: Map<string, RedirectRule>; expiresAt: number } | null;
+  loading: Promise<Map<string, RedirectRule>> | null;
+};
+
+/**
+ * Таблица — в `globalThis`, а не в переменной модуля: proxy и роут ревалидации Next собирает в разные бандлы, но
+ * они живут в одном процессе Node (self-hosted), и сброс из роута должен дойти до proxy.
+ */
+declare global {
+  var __storefrontRedirectRules: Table | undefined;
+}
+
+function table(): Table {
+  return (globalThis.__storefrontRedirectRules ??= { cached: null, loading: null });
+}
 
 async function load(): Promise<Map<string, RedirectRule>> {
   const { redirects } = await getRedirects({ cache: "no-store" });
@@ -18,21 +35,22 @@ async function load(): Promise<Map<string, RedirectRule>> {
 }
 
 function refresh(): Promise<Map<string, RedirectRule>> {
-  loading ??= load()
+  const state = table();
+  state.loading ??= load()
     .then((rules) => {
-      cached = { rules, expiresAt: Date.now() + REDIRECTS_TTL_MS };
+      state.cached = { rules, expiresAt: Date.now() + REDIRECTS_TTL_MS };
       return rules;
     })
     .catch(() => {
       // Сайт без редиректов лучше, чем лежащий сайт: отдаём прежнюю таблицу (или пустую)
-      const rules = cached?.rules ?? new Map<string, RedirectRule>();
-      cached = { rules, expiresAt: Date.now() + RETRY_MS };
+      const rules = state.cached?.rules ?? new Map<string, RedirectRule>();
+      state.cached = { rules, expiresAt: Date.now() + RETRY_MS };
       return rules;
     })
     .finally(() => {
-      loading = null;
+      state.loading = null;
     });
-  return loading;
+  return state.loading;
 }
 
 /**
@@ -41,7 +59,18 @@ function refresh(): Promise<Map<string, RedirectRule>> {
  * сразу, а свежая подтягивается в фоне.
  */
 export async function getRedirectRules(): Promise<Map<string, RedirectRule>> {
+  const { cached } = table();
   if (!cached) return refresh();
   if (Date.now() >= cached.expiresAt) void refresh();
   return cached.rules;
+}
+
+/**
+ * Тег `redirects` пришёл вебхуком: правила изменились — перечитываем сразу, не дожидаясь TTL. Пока грузится
+ * новая, proxy отдаёт прежнюю таблицу.
+ */
+export async function invalidateRedirectRules(): Promise<void> {
+  const state = table();
+  if (state.cached) state.cached.expiresAt = 0;
+  await refresh();
 }

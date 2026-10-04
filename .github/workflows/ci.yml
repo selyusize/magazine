@@ -75,4 +75,5 @@ jobs:
           python-version: "3.13"
       - run: pip install "ansible-core~=2.21.0" ansible-lint
       - run: ansible-galaxy collection install -r requirements.yml
-      - run: ansible-lint
+      # ansible-lint + syntax-check каждого плейбука
+      - run: make -C ../.. infra-lint

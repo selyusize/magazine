@@ -1,12 +1,15 @@
 - name: Проверить параметры деплоя backend
   ansible.builtin.assert:
     that:
-      - domain | length > 0
+      - network_domain | length > 0
       - image_prefix | length > 0
       - vault_medusa_jwt_secret is defined
       - vault_medusa_cookie_secret is defined
       - vault_medusa_auth_mfa_encryption_key is defined
-    fail_msg: Задайте domain и image_prefix в group_vars, секреты Medusa — make infra-vault
+      - vault_shop_secrets_key is defined
+    fail_msg: >-
+      Задайте network_domain и image_prefix в group_vars, секреты Medusa — make infra-vault
+      (в старый vault vault_shop_secrets_key и vault_storefront_revalidate_secret добавить через make infra-vault-edit)
     quiet: true
 
 - name: Каталог backend
@@ -53,13 +56,9 @@
     name: "{{ backend_image }}"
     pull: always
 
-# Идемпотентно: Medusa применяет только новые миграции и migration-scripts.
-# Упали миграции — деплой останавливается, работает прежняя версия.
+# Упали миграции — деплой останавливается, работает прежняя версия
 - name: Миграции БД
-  ansible.builtin.command:
-    cmd: docker compose run --rm --name {{ project_name }}-backend-migrate backend-migrate
-    chdir: "{{ backend_dir }}"
-  changed_when: false
+  ansible.builtin.include_tasks: ops_migrate.yml
 
 - name: Обновить API-сервер без простоя
   ansible.builtin.command:

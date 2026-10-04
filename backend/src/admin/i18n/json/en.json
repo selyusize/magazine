@@ -1,7 +1,7 @@
 {
   "redirects": {
     "title": "Redirects",
-    "description": "301s for renamed products, categories and collections are created automatically. Chains are collapsed.",
+    "description": "Rules of the current shop. 301s for renamed products, categories and collections are created automatically. Chains are collapsed.",
     "create": "Add",
     "edit": "Edit",
     "actions": "Actions",
@@ -267,6 +267,14 @@
       "rank": "Lower goes first in the specs table and filters."
     }
   },
+  "collectionShop": {
+    "title": "Shop",
+    "missing": "No shop selected — no storefront shows this collection. Pick a shop: it cannot be changed later, and the collection's products must belong to it.",
+    "select": "Select a shop",
+    "assign": "Assign",
+    "saved": "Collection shop assigned",
+    "fixed": "The collection's shop cannot be changed."
+  },
   "productCatalog": {
     "title": "Catalog",
     "brand": "Brand",
@@ -473,6 +481,50 @@
         "title": "Nothing to review",
         "description": "All supplier products are ready to publish."
       }
+    }
+  },
+  "storefrontRevalidation": {
+    "title": "Storefront revalidation",
+    "description": "Admin changes expire the current shop's storefront cache within seconds: the backend batches tags over a 3 s window and sends them via webhook. Webhook URL and secret for the storefront, and the delivery log.",
+    "cancel": "Cancel",
+    "copied": "Copied",
+    "nextAttempt": "retry {{time}}",
+    "webhook": {
+      "url": "Webhook URL",
+      "secret": "Secret",
+      "show": "Show",
+      "hide": "Hide",
+      "copy": "Copy",
+      "unreadable": "The secret can't be decrypted (SHOP_SECRETS_KEY changed) — regenerate it",
+      "hint": "Put the secret into the storefront env (REVALIDATE_SECRET), on the server — into the Ansible vault. Without it the storefront answers 401 and the cache refreshes by TTL only."
+    },
+    "regenerate": {
+      "action": "Regenerate secret",
+      "title": "Regenerate the secret?",
+      "description": "Until the storefront gets the new secret, webhooks are rejected (401) and retried.",
+      "confirm": "Regenerate",
+      "done": "Secret regenerated — update the storefront env"
+    },
+    "revalidateAll": {
+      "action": "Revalidate whole storefront",
+      "done": "All storefront tags are queued"
+    },
+    "fields": {
+      "created": "When",
+      "status": "Status",
+      "tags": "Tags",
+      "attempts": "Failures",
+      "result": "Result"
+    },
+    "statuses": {
+      "pending": "Pending",
+      "sending": "Sending",
+      "sent": "Sent",
+      "failed": "Failed"
+    },
+    "empty": {
+      "title": "No deliveries yet",
+      "description": "They appear after the first change of a product, category, brand or redirect of this shop."
     }
   }
 }

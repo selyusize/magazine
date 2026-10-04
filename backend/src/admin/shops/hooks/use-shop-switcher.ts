@@ -25,15 +25,9 @@ const toShopOptions = (value: unknown): ShopOption[] =>
 /** Магазинов в сети десятки — переключателю хватает одной страницы. */
 const SHOPS_LIMIT = 100;
 
-/**
- * Текущий магазин админки: список магазинов, выбор из localStorage (нет или удалён — первый в списке), смена
- * выбора перезапрашивает все данные страницы уже с новым `x-shop-id`.
- */
-export function useShopSwitcher() {
-  const queryClient = useQueryClient();
-  const [currentId, setCurrentId] = useState(readCurrentShopId);
-
-  const shops = useQuery({
+/** Магазины сети для выбора: переключатель, магазин коллекции. */
+export function useShopOptions() {
+  return useQuery({
     queryKey: ["admin-shop-switcher"],
     queryFn: async () =>
       toShopOptions(
@@ -44,6 +38,17 @@ export function useShopSwitcher() {
         ).shops,
       ),
   });
+}
+
+/**
+ * Текущий магазин админки: список магазинов, выбор из localStorage (нет или удалён — первый в списке), смена
+ * выбора перезапрашивает все данные страницы уже с новым `x-shop-id`.
+ */
+export function useShopSwitcher() {
+  const queryClient = useQueryClient();
+  const [currentId, setCurrentId] = useState(readCurrentShopId);
+
+  const shops = useShopOptions();
   const options = shops.data ?? [];
   const current =
     options.find((shop) => shop.id === currentId) ?? options[0] ?? null;

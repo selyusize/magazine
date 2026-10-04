@@ -1,0 +1,94 @@
+# Восстановление БД из бэкапа: make db-restore FILE=<имя на сервере | путь к локальному .dump>.
+# Перед восстановлением — свежий бэкап текущего состояния; backend и worker остановлены на время pg_restore;
+# после — миграции (дамп мог быть со старой версии) и сброс Redis (кэш Query и очереди относятся к старой БД).
+- name: Проверить файл
+  ansible.builtin.assert:
+    that: postgres_restore_file | length > 0
+    fail_msg: "make db-restore FILE=medusa-2026-10-04-0315.dump (список — make db-backups) или путь к локальному .dump"
+    quiet: true
+
+- name: Локальный файл?
+  ansible.builtin.stat:
+    path: "{{ postgres_restore_file }}"
+  register: postgres_restore_local
+  delegate_to: localhost
+  become: false
+
+- name: Загрузить локальный дамп на сервер
+  ansible.builtin.copy:
+    src: "{{ postgres_restore_file }}"
+    dest: "{{ backup_dir }}/postgres/{{ postgres_restore_file | basename }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: postgres_restore_local.stat.exists
+
+- name: Путь дампа на сервере
+  ansible.builtin.set_fact:
+    postgres_restore_path: "{{ backup_dir }}/postgres/{{ postgres_restore_file | basename }}"
+
+- name: Дамп на сервере
+  ansible.builtin.stat:
+    path: "{{ postgres_restore_path }}"
+  register: postgres_restore_remote
+
+- name: Проверить дамп
+  ansible.builtin.assert:
+    that: postgres_restore_remote.stat.exists
+    fail_msg: "Нет {{ postgres_restore_path }} — список: make db-backups"
+    quiet: true
+
+- name: Бэкап текущего состояния перед восстановлением
+  ansible.builtin.command:
+    cmd: "{{ project_dir }}/bin/backup-postgres"
+  register: postgres_pre_restore
+  changed_when: true
+
+- name: Остановить backend и worker
+  ansible.builtin.command:
+    cmd: docker compose stop backend backend-worker
+    chdir: "{{ project_dir }}/backend"
+  changed_when: true
+
+- name: Пересоздать БД и восстановить дамп
+  ansible.builtin.shell:
+    cmd: >-
+      set -euo pipefail;
+      docker compose -f {{ postgres_dir }}/compose.yml exec -T postgres
+      sh -c 'dropdb -U "$POSTGRES_USER" --if-exists --force "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" "$POSTGRES_DB"';
+      docker compose -f {{ postgres_dir }}/compose.yml exec -T postgres
+      sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl --exit-on-error'
+      < {{ postgres_restore_path | quote }}
+    executable: /bin/bash
+  changed_when: true
+
+- name: Сбросить Redis
+  ansible.builtin.command:
+    cmd: docker exec {{ redis_host }} redis-cli FLUSHALL
+  changed_when: true
+
+- name: Миграции
+  ansible.builtin.include_role:
+    name: backend
+    tasks_from: ops_migrate.yml
+
+- name: Запустить backend и worker
+  ansible.builtin.command:
+    cmd: docker compose start backend backend-worker
+    chdir: "{{ project_dir }}/backend"
+  changed_when: true
+
+- name: Дождаться healthy backend
+  ansible.builtin.command:
+    cmd: docker inspect -f '{{ '{{' }}.State.Health.Status{{ '}}' }}' {{ backend_host }}
+  register: postgres_restore_health
+  until: postgres_restore_health.stdout == 'healthy'
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Готово
+  ansible.builtin.debug:
+    msg:
+      - "БД восстановлена из {{ postgres_restore_path | basename }}"
+      - "Состояние до восстановления: {{ postgres_pre_restore.stdout_lines | last | regex_replace('^OK: ', '') | basename }}"

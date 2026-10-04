@@ -9,7 +9,8 @@ traefik_acme_email: "{{ acme_email }}"
 traefik_acme_staging: false
 
 traefik_dashboard_enabled: true
-traefik_dashboard_domain: "traefik.{{ domain }}"
+# Хостов несколько (backend и storefronts раздельно) — у каждого свой traefik: переопределите в host_vars
+traefik_dashboard_domain: "traefik.{{ network_domain }}"
 traefik_dashboard_user: admin
 traefik_dashboard_password: "{{ vault_traefik_dashboard_password }}"
 

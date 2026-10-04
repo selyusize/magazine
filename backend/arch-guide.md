@@ -139,7 +139,10 @@ src/
 - **Магазин** (`shopScoped: true`): список — только текущего магазина админки, создание пишет его `shop_id`; доступ
   по id — строка в `shopOwnedRoutes` (п.9, «Магазин запроса и доступ к сущностям магазина»).
 - **Handle** (`handle: { from, scope }`): slug из названия под блокировкой; явный handle — slug из него, занят →
-  400; переименование адрес не меняет; уникальность — в пределах `scope` (посадочная — внутри категории).
+  400; переименование адрес не меняет; уникальность — в пределах `scope` (у сущности магазина — `["shop_id", …]`,
+  посадочная — внутри категории магазина).
+- **Ссылки на сущности магазина в теле** (`shopReferences: [{ field, entity, shop_field, label }]`): при создании и
+  изменении сущность по ссылке должна быть из магазина записи — иначе 400 (категория посадочной).
   Пути, 301 и 410 — модуль redirect по событиям (`URL_ENTITIES` в `redirect/service/path.ts`, подписчики
   `redirect-{entity}-url.ts` / `-deleted.ts`).
 
@@ -509,8 +512,11 @@ export class CreateReviewForProductHandler extends AbstractCommandHandler<Create
     и сущности Medusa, и связи между ними.
   - `fields` — явный список, только то, что нужно потребителю. `*` не используем.
   - Цены — через `QueryContext({ currency_code, region_id })`, не вручную.
-  - Данные внешних API (ПВЗ, справочники перевозчиков) — через `this.cached(key, ttl, load)` базового класса:
+  - Данные внешних API (ПВЗ, справочники перевозчиков) — через `this.cached(key, ttl, schema, load)` базового класса:
     Redis, если подключён модуль кэша, иначе прямой вызов.
+  - Свой кэш данных (магазин по ключу, origin витрин) — `this.cached(key, ttl, schema, load, tags)`: теги
+    регистрируются в реестре инвалидации `src/container/common/cache.ts` (событие → теги), сброс — по событию
+    изменения, `ttl` — только страховка. Кэш без строки в реестре не заводим.
   - Кэш — вторым аргументом: `this.graph({...}, { cache: { enable: true } })`. Включаем для данных витрины, которые
     читают часто, а меняют редко (каталог, категории, реквизиты). Хранилище — модуль Caching Medusa в Redis
     (`medusa-config.ts`), инвалидация — автоматически по событиям сущностей. Свой кэш (`Map` в памяти, ручные ключи
@@ -748,6 +754,29 @@ Store API — по publishable-ключу, Admin API — по заголовку
   отката, откат — обратная команда (`assign-shop-to-categories` / `remove-shop-from-categories`).
 - **Магазин через связь в CRUD-фабрике** — `shopScoped: { through: "supplier" }`: список фильтруется по
   `supplier.shop_id`, `shop_id` в строку не пишется (предложение поставщика).
+- **Handle сущностей Medusa** (товар, категория, коллекция) в Medusa уникален на сеть, поэтому в БД он
+  `{магазин}ː{slug}` (`olisaːutyug-philips`; разделитель U+02D0 — `--` модуль товаров Medusa не пропускает). Все
+  преобразования — только `src/shared/shop/shop-handle.ts`: `toStoredHandle` (импорт, сид, `create-shop`),
+  `toPublicHandle` (пути, DTO админки, свои Store-роуты), `toShopHandle` (handle витрины из запроса). Наружу handle
+  всегда без префикса: ответы Store API (и роуты Medusa) проходят через `PublishStoreHandlesMiddleware`, фильтры
+  `?handle=` роутов Medusa переводит реестр `storeHandleParams` (`src/container/common/shop.ts`). Handle из админки
+  Medusa (без префикса, кириллицей) приводит к `{магазин}ː{slug}` подписчик `sync-entity-url` — до его срабатывания
+  такой же handle во втором магазине упрётся в уникальность Medusa.
+- **Пути и редиректы — у каждого магазина свои**: `redirect.shop_id` (`from_path` уникален в паре), `entity_path.shop_id`;
+  магазин сущности для 301/410 — `URL_ENTITIES[type].shopOf` (`redirect/service/path.ts`), после удаления — из
+  `entity_path`. Store — правила `req.shop`, Admin — текущего магазина. Статический роут рядом с `:id` в реестре
+  `shopOwnedRoutes` — через `methods` (`/admin/redirects/import` рядом с `DELETE /admin/redirects/:id`).
+- **Магазин коллекции** — связь `shop ↔ product_collection`, как у категории: хук `collectionsCreated` берёт его из
+  `additional_data.shop_id` или префикса handle, коллекции из дашборда магазин выбирают в карточке (виджет,
+  `POST /admin/collections/:id/shop`, один раз). Правила — `catalog/service/collection-shop-rules.ts`; товар чужой
+  коллекции — `foreign_collection` в `product-shop-rules`; товары списком в коллекцию — `CollectionProductsGuard`
+  на роуте Medusa.
+- **Сущности Medusa без канала продаж в Store API** (категории, коллекции) Medusa по магазинам не делит: реестр
+  `storeShopScopedRoutes` (`src/container/common/shop.ts`) — список фильтруется по префиксу handle магазина ключа
+  (middleware с методом — после валидации query Medusa, в `req.filterableFields`), карточка `/:id` чужой — 404.
+  Сущности магазина по id в Store API (корзина) — реестр `storeShopOwnedRoutes`, как `shopOwnedRoutes`, но магазин —
+  ключа. Товары и поиск Medusa ограничивает каналом ключа сама. Роут Medusa, который обходит инварианты (привязка
+  товаров к каналу списком без хуков), закрывается middleware на этом роуте. Карта правил — `docs/multishop.md`.
 - **Блоки карточки товара в админке** работают в магазине товара, а не переключателя: `GET /admin/products/:id/shop`
   (сетевой роут) → `adminFetch(url, init, shopId)`; подпути `/admin/products/:id/{catalog,attributes,supplier-offers}`
   — в реестре `shopOwnedRoutes`. Список категорий Medusa `/admin/product-categories` сетевой — формы берут
@@ -778,6 +807,13 @@ export const config: SubscriberConfig = { event: "order.placed" };
   таблицы. Read-only связь «один ко многим» — `{ readOnly: true, isList: true }` в опциях: `isList` у второй стороны
   такая связь не читает, и Query отдаст одну запись вместо списка (`product_variant.supplier_offers`).
 - **Свои события** — из workflow шагом `emitEventStep`, имя `{entity}.{past-tense}` (`review.created`).
+- **Кэш витрин** — по событиям, а не по времени: сущность, которую показывает витрина, — строка в реестре
+  `src/container/common/cache.ts` (где у неё магазин, какие теги витрины сбрасывает). Подписчик `cache-invalidation`
+  ставит теги в пачку магазина, вебхук уходит его фронту после окна дебаунса (`docs/storefront.md`). Команда,
+  которая меняет такие данные без события сущности (редиректы), шлёт своё событие (`redirect.updated` с `shop_id`).
+- **Таймер в workflow** — событие с задержкой (`emitEventStep({ options: { delay } })`, BullMQ и локальная шина
+  его держат), а не `setTimeout` и не свой планировщик; потерянные таймеры подбирает job (пример — ревалидация
+  витрин, `shop/command/send-storefront-revalidation`).
 - **Интеграции** (почта, ЮKassa/СБП, СДЭК):
   - свой клиент внешней системы — инфраструктурный сервис в `src/shared/{service}/service/` (п.4, пример — SMTP);
   - если интеграция должна встроиться в процессы Medusa (оплата в checkout, тарифы доставки) — провайдер встроенного

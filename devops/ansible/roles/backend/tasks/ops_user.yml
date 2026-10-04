@@ -1,0 +1,18 @@
+# Админ Medusa без захода на сервер: make backend-user EMAIL=… PASSWORD=… (пароль в лог Ansible не попадает)
+- name: Проверить email и пароль
+  ansible.builtin.assert:
+    that:
+      - admin_email is match('^[^@\s]+@[^@\s]+$')
+      - admin_password | length >= 8
+    fail_msg: "make backend-user EMAIL=admin@example.ru PASSWORD=<не короче 8 символов>"
+    quiet: true
+
+- name: Создать админа
+  ansible.builtin.include_tasks: ops_exec.yml
+  vars:
+    backend_cmd: pnpm exec medusa user -e {{ admin_email | quote }} -p {{ admin_password | quote }}
+    backend_cmd_secret: true
+
+- name: Готово
+  ansible.builtin.debug:
+    msg: "Админ {{ admin_email }} создан: https://{{ backend_domain }}/app"

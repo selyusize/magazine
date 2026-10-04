@@ -1,6 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 
-import { adminHeaders, storeHeaders, waitFor } from "./helpers/auth";
+import { testShopContext, waitFor } from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
 
 jest.setTimeout(120 * 1000);
@@ -20,9 +20,9 @@ medusaIntegrationTestRunner({
         )
       ).data.redirect;
 
+    // Статьи и их редиректы — в одном магазине
     beforeEach(async () => {
-      store = await storeHeaders(getContainer());
-      admin = await adminHeaders(api, getContainer());
+      ({ store, admin } = await testShopContext(api, getContainer()));
     });
 
     it("создаёт черновик со slug из заголовка и фильтрует по статусу", async () => {

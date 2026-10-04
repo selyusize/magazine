@@ -1,0 +1,23 @@
+# БД без захода на сервер (Makefile, раздел «Прод: эксплуатация»):
+#   make db-backup [DOWNLOAD=1]   — бэкап сейчас (и скачать в devops/dumps)
+#   make db-backups               — бэкапы на сервере
+#   make db-restore FILE=…        — восстановить (спросит подтверждение): имя на сервере или локальный .dump
+- name: БД — эксплуатация
+  hosts: backend[0]
+  become: true
+  gather_facts: false
+  vars:
+    db_op: "{{ lookup('ansible.builtin.env', 'DB_OP') }}"
+    postgres_backup_download: "{{ lookup('ansible.builtin.env', 'DB_DOWNLOAD') | default('', true) | length > 0 }}"
+    postgres_restore_file: "{{ lookup('ansible.builtin.env', 'DB_FILE') }}"
+  tasks:
+    - name: Проверить операцию
+      ansible.builtin.assert:
+        that: db_op in ['backup', 'list', 'restore']
+        fail_msg: "DB_OP: backup | list | restore — используйте цели make db-*"
+        quiet: true
+
+    - name: Операция {{ db_op }}
+      ansible.builtin.include_role:
+        name: postgres
+        tasks_from: "ops_{{ db_op }}.yml"

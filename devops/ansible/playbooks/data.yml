@@ -1,7 +1,7 @@
 # Хранилища и брокер: PostgreSQL + Redis (Medusa), RabbitMQ (rabbitmq_enabled).
 # Отдельный сервис: make infra-data TAGS=rabbitmq
 - name: Хранилища и брокер сообщений
-  hosts: shop
+  hosts: backend
   become: true
   roles:
     - role: postgres

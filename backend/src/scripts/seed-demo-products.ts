@@ -33,7 +33,7 @@ import type {
 } from "@medusajs/framework/types";
 
 import { Container } from "@container/index";
-import { toStoredHandle } from "@shared/shop/shop-slug";
+import { toStoredHandle } from "@shared/shop/shop-handle";
 import { UpdateCatalogForProductHandler } from "@domain/catalog/command/update-catalog-for-product/handler";
 import { CreateSupplierOfferHandler } from "@domain/supplier/command/create-supplier-offer/handler";
 import { SyncInventoryForSupplierHandler } from "@domain/supplier/command/sync-inventory-for-supplier/handler";
@@ -322,7 +322,10 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     // PRNG would shift after the first skip and the script would create
     // duplicates instead of recognising its own products.
     const type = TYPES[index % TYPES.length];
-    const handle = `${HANDLE_PREFIX}-${index + 1}-${type.toLowerCase()}`;
+    const handle = toStoredHandle({
+      shop: initialShopConfig.slug,
+      handle: `${HANDLE_PREFIX}-${index + 1}-${type.toLowerCase()}`,
+    });
 
     if (takenHandles.has(handle)) {
       continue;

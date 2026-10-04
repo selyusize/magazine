@@ -7,8 +7,9 @@ import { useTranslation } from "react-i18next";
 import { RedirectFormDrawer } from "../../redirects/components/redirect-form-drawer";
 import { RedirectsTable } from "../../redirects/components/redirects-table";
 import { useRedirectsPage } from "../../redirects/hooks/use-redirects-page";
+import { ShopSwitcher } from "../../shops/components/shop-switcher";
 
-/** Редиректы витрины: ручные правила, автоматические 301 при смене handle и импорт из CSV. */
+/** Редиректы витрины текущего магазина: ручные правила, автоматические 301 при смене handle и импорт из CSV. */
 const RedirectsPage = () => {
   const { t } = useTranslation();
   const page = useRedirectsPage();
@@ -23,7 +24,8 @@ const RedirectsPage = () => {
             {t("redirects.description")}
           </Text>
         </div>
-        <div className="flex items-center gap-x-2">
+        <div className="flex flex-wrap items-center gap-x-2">
+          <ShopSwitcher />
           <input
             ref={fileInput}
             type="file"

@@ -1,0 +1,32 @@
+# Эксплуатация backend без захода на сервер. Цели make (раздел «Прод: эксплуатация» в Makefile):
+#   make backend-migrate                              — миграции и migration-scripts
+#   make backend-exec CMD="…"                         — разовая команда в контейнере с образом и env backend
+#   make backend-seed                                 — демо-товары (стенд; спросит подтверждение)
+#   make backend-user EMAIL=… PASSWORD=…              — админ Medusa
+#   make backend-logs SERVICE=worker SINCE=1h LINES=200 — логи контейнера (полностью — в devops/logs/)
+#   make backend-log-files NAME='import-*'            — файловые логи (импорт, 1С, фиды) → devops/logs/
+# Параметры приходят из env (их выставляет Makefile) — кавычки и пробелы в CMD не ломают командную строку.
+- name: Backend — эксплуатация
+  hosts: backend[0]
+  become: true
+  gather_facts: false
+  vars:
+    backend_op: "{{ lookup('ansible.builtin.env', 'BACKEND_OP') }}"
+    backend_cmd: "{{ lookup('ansible.builtin.env', 'BACKEND_CMD') }}"
+    admin_email: "{{ lookup('ansible.builtin.env', 'ADMIN_EMAIL') }}"
+    admin_password: "{{ lookup('ansible.builtin.env', 'ADMIN_PASSWORD') }}"
+    backend_logs_service: "{{ lookup('ansible.builtin.env', 'LOGS_SERVICE') or 'server' }}"
+    backend_logs_since: "{{ lookup('ansible.builtin.env', 'LOGS_SINCE') or '1h' }}"
+    backend_logs_lines: "{{ lookup('ansible.builtin.env', 'LOGS_LINES') or '200' }}"
+    backend_log_files_name: "{{ lookup('ansible.builtin.env', 'LOGS_NAME') or '*' }}"
+  tasks:
+    - name: Проверить операцию
+      ansible.builtin.assert:
+        that: backend_op in ['migrate', 'exec', 'user', 'logs', 'log_files']
+        fail_msg: "BACKEND_OP: migrate | exec | user | logs | log_files — используйте цели make backend-*"
+        quiet: true
+
+    - name: Операция {{ backend_op }}
+      ansible.builtin.include_role:
+        name: backend
+        tasks_from: "ops_{{ backend_op }}.yml"

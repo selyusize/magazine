@@ -35,6 +35,7 @@ medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let admin: Record<string, string>;
     let salesChannelId: string;
+    let shopSlug: string;
     let rootCategoryId: string;
 
     const query = () => getContainer().resolve(ContainerRegistrationKeys.QUERY);
@@ -169,6 +170,7 @@ medusaIntegrationTestRunner({
       const { headers, shop } = await adminShopHeaders(api, getContainer());
       admin = headers;
       salesChannelId = shop.sales_channel_id ?? "";
+      shopSlug = shop.slug;
       rootCategoryId = shop.root_category_id;
       await post("/admin/attributes", { name: "Материал" });
     });
@@ -205,7 +207,8 @@ medusaIntegrationTestRunner({
       expect(airmax).toEqual(
         expect.objectContaining({
           title: "Кроссовки Air Max 90",
-          handle: "krossovki-air-max-90",
+          // В БД — с префиксом магазина поставщика, наружу — без него
+          handle: `${shopSlug}ːkrossovki-air-max-90`,
           status: "draft",
           description: "Классические кроссовки с воздушной подушкой.",
           brand: expect.objectContaining({ name: "NIKE" }),

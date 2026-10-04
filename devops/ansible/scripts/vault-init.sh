@@ -36,6 +36,10 @@ vault_rabbitmq_password: $(secret)
 vault_medusa_jwt_secret: $(secret 32)
 vault_medusa_cookie_secret: $(secret 32)
 vault_medusa_auth_mfa_encryption_key: $(secret 32)
+# Ключ шифрования секретов магазинов в БД (вебхук ревалидации, позже ЮKassa). Смена — секреты перевыпускать
+vault_shop_secrets_key: $(secret 32)
+# Секрет вебхука ревалидации первого магазина: сид кладёт его магазину, фронт — в REVALIDATE_SECRET
+vault_storefront_revalidate_secret: $(secret 32)
 
 # Пароль SMTP (smtp_host / smtp_user — в group_vars/all/main.yml). Для Яндекс 360 и Mail.ru — пароль приложения
 vault_smtp_password: ""

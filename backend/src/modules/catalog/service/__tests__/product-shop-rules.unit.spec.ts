@@ -9,6 +9,7 @@ const candidate = (patch: Partial<ProductShopCandidate> = {}): ProductShopCandid
   main_category_shop_id: null,
   category_shop_ids: [],
   attribute_shop_ids: [],
+  collection_shop_id: null,
   ...patch,
 });
 
@@ -24,6 +25,8 @@ describe("findProductShopProblems", () => {
     ["чужая основная категория", { main_category_shop_id: "shop_b" }, ["foreign_main_category"]],
     ["категория без магазина — чужая", { category_shop_ids: ["shop_a", null] }, ["foreign_categories"]],
     ["одна чужая характеристика", { attribute_shop_ids: ["shop_a", "shop_b"] }, ["foreign_attributes"]],
+    ["коллекция своего магазина", { collection_shop_id: "shop_a" }, []],
+    ["чужая коллекция", { collection_shop_id: "shop_b" }, ["foreign_collection"]],
     [
       "всё чужое — все нарушения по порядку",
       {
@@ -31,8 +34,9 @@ describe("findProductShopProblems", () => {
         main_category_shop_id: "shop_b",
         category_shop_ids: ["shop_b"],
         attribute_shop_ids: ["shop_b"],
+        collection_shop_id: "shop_b",
       },
-      ["foreign_brand", "foreign_main_category", "foreign_categories", "foreign_attributes"],
+      ["foreign_brand", "foreign_main_category", "foreign_categories", "foreign_attributes", "foreign_collection"],
     ],
   ])("%s", (_name, patch, expected) => {
     expect(findProductShopProblems(candidate(patch))).toEqual(expected);

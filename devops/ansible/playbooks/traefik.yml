@@ -1,6 +1,6 @@
 # Reverse proxy: HTTPS (Let's Encrypt), редирект с HTTP, заголовки безопасности, сжатие, дашборд
 - name: Traefik
-  hosts: shop
+  hosts: backend:storefronts
   become: true
   roles:
     - role: traefik

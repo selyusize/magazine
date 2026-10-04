@@ -20,7 +20,7 @@ import {
 import { toCRUDRow } from "@shared/crud/definition";
 import { records } from "@shared/query/narrow";
 import { SHOP_ROOT_CATEGORY_DATA } from "@shared/shop/catalog-shop";
-import { toStoredHandle } from "@shared/shop/shop-slug";
+import { toStoredHandle } from "@shared/shop/shop-handle";
 
 import { SHOP_MODULE } from "../../index";
 import { SHOP_FIELDS, toShopDTO } from "../../crud";

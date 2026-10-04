@@ -1,0 +1,49 @@
+# Логи контейнера хоста backend: make backend-logs SERVICE=server|worker|static|traefik SINCE=1h LINES=200.
+# Полный вывод за период — в devops/logs/ на вашей машине, в консоль — последние LINES строк.
+- name: Контейнер для логов
+  ansible.builtin.set_fact:
+    backend_logs_container: >-
+      {{ {'server': backend_host, 'worker': backend_worker_host,
+      'static': project_name ~ '-backend-static', 'traefik': project_name ~ '-traefik'}[backend_logs_service]
+      | default('') }}
+
+- name: Проверить сервис
+  ansible.builtin.assert:
+    that: backend_logs_container | length > 0
+    fail_msg: "SERVICE — server, worker, static или traefik"
+    quiet: true
+
+- name: Время выгрузки
+  ansible.builtin.set_fact:
+    backend_logs_file: >-
+      {{ playbook_dir }}/../../logs/{{ backend_logs_container }}-{{ lookup('ansible.builtin.pipe', 'date +%Y%m%d-%H%M%S') }}.log
+
+- name: Логи за период
+  ansible.builtin.command:
+    argv: [docker, logs, --timestamps, --since, "{{ backend_logs_since }}", "{{ backend_logs_container }}"]
+  register: backend_logs
+  changed_when: false
+  check_mode: false
+
+- name: Каталог devops/logs
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../logs"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+# docker logs пишет stdout и stderr приложения раздельно; Medusa логирует в stdout, ошибки Node — в stderr
+- name: Сохранить логи локально
+  ansible.builtin.copy:
+    dest: "{{ backend_logs_file }}"
+    content: "{{ (backend_logs.stdout_lines + backend_logs.stderr_lines) | sort | join('\n') }}\n"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+
+- name: Последние строки
+  ansible.builtin.debug:
+    msg: >-
+      {{ ((backend_logs.stdout_lines + backend_logs.stderr_lines) | sort)[-(backend_logs_lines | int):]
+      + ['', 'Полностью: ' ~ (backend_logs_file | realpath)] }}

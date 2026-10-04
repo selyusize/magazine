@@ -1,6 +1,6 @@
 "use server";
 
-import { getProducts, getRegions, postSearch } from "@shared/api";
+import { cacheTags, getProducts, getRegions, postSearch } from "@shared/api";
 import { env } from "@shared/config";
 
 import { PRODUCT_CARD_FIELDS, PRODUCT_DETAIL_FIELDS, PRODUCT_PRICE_FIELDS } from "../config/fields";
@@ -32,7 +32,7 @@ type PriceRegion = { id: string; currencyCode: string };
 async function getRegion(): Promise<PriceRegion | undefined> {
   const { regions } = await getRegions(
     { id: env.regionId || undefined, fields: "id,currency_code", limit: 1 },
-    { next: { revalidate: 3600, tags: ["regions"] } },
+    { next: { revalidate: 3600, tags: [cacheTags.regions] } },
   );
   return regions[0];
 }
@@ -65,7 +65,7 @@ export async function listProducts({ q, handle, limit, offset = 0, categoryId, c
       regionId,
       fields: regionId ? `${PRODUCT_CARD_FIELDS},${PRODUCT_PRICE_FIELDS}` : PRODUCT_CARD_FIELDS,
     },
-    { next: { revalidate: 60, tags: ["products"] } },
+    { next: { revalidate: 60, tags: [cacheTags.products] } },
   );
 
   // Medusa отдаёт товары в своём порядке, а подборка по handle — в заданном
@@ -105,7 +105,7 @@ export async function searchProducts({ filters = [], order, facets, limit, offse
       ],
     },
     undefined,
-    { next: { revalidate: 60, tags: ["products"] } },
+    { next: { revalidate: 60, tags: [cacheTags.products] } },
   );
   const result = results[0];
   const ids = result?.hits.map((hit) => hit.id) ?? [];
@@ -120,7 +120,7 @@ export async function searchProducts({ filters = [], order, facets, limit, offse
           regionId,
           fields: regionId ? `${PRODUCT_CARD_FIELDS},${PRODUCT_PRICE_FIELDS}` : PRODUCT_CARD_FIELDS,
         },
-        { next: { revalidate: 60, tags: ["products"] } },
+        { next: { revalidate: 60, tags: [cacheTags.products] } },
       )
     : { products: [] };
   // Store API не держит порядок id — возвращаем порядок индекса
@@ -147,7 +147,7 @@ export async function getProductByHandle(handle: string): Promise<ProductDetail 
       regionId,
       fields: regionId ? `${PRODUCT_DETAIL_FIELDS},${PRODUCT_PRICE_FIELDS}` : PRODUCT_DETAIL_FIELDS,
     },
-    { next: { revalidate: 60, tags: ["products", `product:${handle}`] } },
+    { next: { revalidate: 60, tags: [cacheTags.products, cacheTags.product(handle)] } },
   );
   return products[0] ? fromStoreProductDetail(products[0]) : null;
 }

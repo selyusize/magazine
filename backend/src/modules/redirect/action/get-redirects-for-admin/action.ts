@@ -5,11 +5,12 @@ import type {
 
 import { Injectable } from "@shared/container";
 import type { Action } from "@shared/contract/action";
+import { requireAdminShop } from "@shared/shop/shop-context";
 
 import { GetRedirectsForAdminFetcher } from "../../query/get-redirects-for-admin/fetcher";
 import type { GetRedirectsForAdminParams } from "./schema";
 
-/** Страница правил с поиском — для таблицы в админке. */
+/** Страница правил текущего магазина с поиском — для таблицы в админке. */
 @Injectable()
 export class GetRedirectsForAdminAction implements Action<
   AuthenticatedMedusaRequest<unknown, GetRedirectsForAdminParams>
@@ -22,6 +23,7 @@ export class GetRedirectsForAdminAction implements Action<
   ): Promise<void> {
     const { q, limit, offset } = req.validatedQuery;
     const { redirects, count } = await this.fetcher.fetch({
+      shop_id: requireAdminShop(req).id,
       q: q || undefined,
       limit,
       offset,

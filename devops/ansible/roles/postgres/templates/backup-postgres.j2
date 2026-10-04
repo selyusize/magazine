@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Управляется Ansible (roles/postgres). Дамп БД {{ postgres_db }} (формат custom), хранится {{ backup_keep_days }} дн.
-# Восстановление:
-#   docker compose -f {{ postgres_dir }}/compose.yml exec -T postgres \
-#     pg_restore -U {{ postgres_user }} -d {{ postgres_db }} --clean --if-exists < <файл>.dump
+# Бэкап сейчас — make db-backup, список — make db-backups, восстановление — make db-restore FILE=<файл>.dump
+# (с машины разработчика, без захода на сервер: playbooks/db-ops.yml)
 set -euo pipefail
 
 dir={{ backup_dir }}/postgres

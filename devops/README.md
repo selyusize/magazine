@@ -42,4 +42,5 @@ docker compose --profile app down
 
 ## Прод
 
-Здесь — локальный запуск. Сервер, HTTPS, БД, CI/CD и деплой без простоя — [`ansible/README.md`](ansible/README.md).
+Здесь — локальный запуск. Сервер, HTTPS, БД, CI/CD, деплой без простоя и эксплуатация без захода на сервер
+(миграции, логи, бэкапы, восстановление, админы — цели `make`) — [`ansible/README.md`](ansible/README.md).

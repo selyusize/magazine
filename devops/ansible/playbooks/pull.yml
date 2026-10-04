@@ -5,7 +5,7 @@
 #   make pull-db TABLES=product,product_variant   # только данные этих таблиц (схема локально та же — миграции применены)
 #   make pull-files                    # только загрузки (картинки товаров)
 - name: Выгрузка с прода
-  hosts: shop[0]
+  hosts: backend[0]
   become: true
   gather_facts: false
   vars:

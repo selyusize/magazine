@@ -1,10 +1,10 @@
 - name: Проверить параметры traefik
   ansible.builtin.assert:
     that:
-      - domain | length > 0
+      - network_domain | length > 0
       - traefik_acme_email | length > 0
       - not traefik_dashboard_enabled or vault_traefik_dashboard_password is defined
-    fail_msg: Задайте domain и acme_email в group_vars, секреты — make infra-vault
+    fail_msg: Задайте network_domain и acme_email в group_vars, секреты — make infra-vault
     quiet: true
 
 - name: Установить passlib (htpasswd для дашборда)

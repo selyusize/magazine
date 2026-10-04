@@ -1,4 +1,4 @@
-import { findRedirectProblem, normalizePath, toEntityPath } from "../path";
+import { findRedirectProblem, normalizePath, toEntityPath, URL_ENTITIES } from "../path";
 
 describe("normalizePath", () => {
   it("убирает домен, query, якорь и завершающий слеш", () => {
@@ -45,5 +45,35 @@ describe("normalizePath", () => {
         product_category: null,
       }),
     ).toBeNull();
+  });
+
+  it("путь — с handle витрины, без префикса магазина", () => {
+    expect(toEntityPath("product", { id: "x", handle: "olisaːutyug-philips" })).toBe("/products/utyug-philips");
+    expect(
+      toEntityPath("filter_page", { id: "x", handle: "nike", product_category: { handle: "olisaːkrossovki" } }),
+    ).toBe("/catalog/krossovki/nike");
+  });
+});
+
+describe("URL_ENTITIES.shopOf", () => {
+  it("товар — магазин единственного канала, в двух каналах — ничей", () => {
+    const channel = (id: string) => ({ id: `sc_${id}`, shop: { id } });
+    expect(URL_ENTITIES.product.shopOf({ id: "p", sales_channels: [channel("shop_a")] })).toEqual({ id: "shop_a" });
+    expect(
+      URL_ENTITIES.product.shopOf({ id: "p", sales_channels: [channel("shop_a"), channel("shop_b")] }),
+    ).toBeNull();
+  });
+
+  it("категория — по связи, свои сущности — по shop_id", () => {
+    expect(URL_ENTITIES.product_category.shopOf({ id: "c", shop: { id: "shop_a" } })).toEqual({ id: "shop_a" });
+    expect(URL_ENTITIES.brand.shopOf({ id: "b", shop_id: "shop_a" })).toEqual({ id: "shop_a" });
+    expect(URL_ENTITIES.article.shopOf({ id: "a" })).toBeNull();
+  });
+
+  it("коллекция — по связи с магазином, без связи — ничья (префикс handle не в счёт)", () => {
+    expect(URL_ENTITIES.product_collection.shopOf({ id: "c", handle: "leto", shop: { id: "shop_a" } })).toEqual({
+      id: "shop_a",
+    });
+    expect(URL_ENTITIES.product_collection.shopOf({ id: "c", handle: "olisaːleto" })).toBeNull();
   });
 });

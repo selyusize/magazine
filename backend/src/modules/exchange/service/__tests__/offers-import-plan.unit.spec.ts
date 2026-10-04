@@ -40,6 +40,7 @@ const state = (overrides: Partial<OffersImportState> = {}): OffersImportState =>
   duplicates: {},
   taken_handles: [],
   currency_code: "rub",
+  shop_slug: "olisa",
   sales_channel_id: "sc_1",
   shipping_profile_id: "sp_1",
   ...overrides,
@@ -58,7 +59,7 @@ describe("planOffersImport", () => {
         external_id: "p1",
         product: {
           title: "Кроссовки Air Max",
-          handle: "krossovki-air-max-2",
+          handle: "olisaːkrossovki-air-max-2",
           status: "draft",
           options: [{ title: "Размер", values: ["42", "43"] }],
           variants: [

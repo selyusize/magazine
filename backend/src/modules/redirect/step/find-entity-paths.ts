@@ -3,8 +3,12 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
 import { toURLEntityRows, URL_ENTITIES, type URLEntityType } from "../service/path";
 import type { EntityPathInput } from "../service/redirect-module-service";
+import { findEntityShop } from "./find-entity-shop";
 
-/** Общий шаг команд модуля, только чтение: текущие пути сущностей по фильтру (посадочные одной категории). */
+/**
+ * Общий шаг команд модуля, только чтение: текущие пути сущностей по фильтру (посадочные одной категории) — каждый
+ * в магазине сущности; сущность без магазина пропускается.
+ */
 export const findEntityPathsStep = createStep(
   "find-entity-paths",
   async (
@@ -19,12 +23,12 @@ export const findEntityPathsStep = createStep(
       filters: input.filters,
     });
 
-    const paths = toURLEntityRows(data).flatMap((row): EntityPathInput[] => {
+    const paths: EntityPathInput[] = [];
+    for (const row of toURLEntityRows(data)) {
       const path = config.toPath(row);
-      return path
-        ? [{ entity_type: input.entity_type, entity_id: row.id, path }]
-        : [];
-    });
+      const shop = path ? await findEntityShop(query, config.shopOf(row)) : null;
+      if (path && shop) paths.push({ shop_id: shop.id, entity_type: input.entity_type, entity_id: row.id, path });
+    }
     return new StepResponse(paths);
   },
 );

@@ -8,7 +8,7 @@ import type { FindRedirectByPathParams } from "@domain/redirect/action/find-redi
  * @oas [get] /store/redirects/resolve
  * operationId: GetRedirectsResolve
  * summary: Редирект для пути
- * description: Путь нормализуется (домен, query, завершающий слеш, %-кодирование). Нет правила — redirect = null.
+ * description: Только правила магазина ключа. Путь нормализуется (домен, query, завершающий слеш, %-кодирование). Нет правила — redirect = null.
  * x-authenticated: false
  * parameters:
  *   - name: x-publishable-api-key

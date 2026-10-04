@@ -2,7 +2,7 @@
 # Publishable key — medusa_publishable_key из group_vars или первый неотозванный ключ из БД (значит, backend уже задеплоен).
 #   ansible-playbook playbooks/frontend-build-args.yml -e build_args_file=/tmp/frontend.args
 - name: Build-args витрины
-  hosts: shop[0]
+  hosts: backend[0]
   become: true
   gather_facts: false
   tasks:

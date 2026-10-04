@@ -1,7 +1,7 @@
 import { Injectable } from "@shared/container";
 import { AbstractFetcher } from "@shared/query/abstract-fetcher";
 import { recordOf, recordOrNull, records, text, textOrNull } from "@shared/query/narrow";
-import { categoryShopId, PRODUCT_SHOP_FIELDS, toProductShop } from "@shared/shop/catalog-shop";
+import { categoryShopId, collectionShopId, PRODUCT_SHOP_FIELDS, toProductShop } from "@shared/shop/catalog-shop";
 
 import { findProductShopProblems } from "../../service/product-shop-rules";
 import type { ShopProblemDTO } from "./dto";
@@ -23,13 +23,14 @@ const toShopProblemDTO = (value: unknown): ShopProblemDTO => {
       main_category_shop_id: categoryShopId(recordOrNull(product.product_main_category)?.product_category),
       category_shop_ids: records(product.categories).map(categoryShopId),
       attribute_shop_ids: [...new Set(attributeShopIds)],
+      collection_shop_id: collectionShopId(recordOrNull(product.collection)),
     }),
   };
 };
 
 /**
  * Товары из списка, нарушающие правила магазина (`product-shop-rules`): не ровно один канал магазина, бренд,
- * основная категория, категории или характеристики чужого магазина. Всё в порядке — пустой массив.
+ * основная категория, категории, характеристики или коллекция чужого магазина. Всё в порядке — пустой массив.
  */
 @Injectable()
 export class FindShopProblemsByProductIdsFetcher extends AbstractFetcher<
@@ -49,6 +50,7 @@ export class FindShopProblemsByProductIdsFetcher extends AbstractFetcher<
         "product_main_category.product_category.shop.id",
         "categories.shop.id",
         "attribute_values.attribute.shop_id",
+        "collection.shop.id",
       ],
       filters: { id: query.product_ids },
     });

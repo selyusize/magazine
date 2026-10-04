@@ -1,0 +1,37 @@
+# Дрейф инфраструктуры: что изменил бы `make infra-site` на серверах (--check --diff, ничего не меняет).
+# Раз в неделю и вручную; те же секреты окружения production, что у деплоя. Локально — make infra-check.
+name: Infra check
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ansible --check --diff
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+      IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/ansible-setup
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+
+      - name: infra-site --check --diff
+        # GHCR — только нижний регистр
+        run: make infra-check IMAGE_PREFIX="${IMAGE_PREFIX,,}"

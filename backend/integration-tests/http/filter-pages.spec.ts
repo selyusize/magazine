@@ -5,7 +5,8 @@ import {
   updateProductCategoriesWorkflow,
 } from "@medusajs/medusa/core-flows";
 
-import { adminHeaders, storeHeaders, testCategoryRoot, waitFor } from "./helpers/auth";
+import { toStoredHandle } from "../../src/shared/shop/shop-handle";
+import { createTestShop, type TestShopContext, testShopContext, waitFor } from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
 
 jest.setTimeout(120 * 1000);
@@ -14,6 +15,7 @@ medusaIntegrationTestRunner({
   inApp: true,
   env: {},
   testSuite: ({ api, getContainer }) => {
+    let shop: TestShopContext;
     let store: Record<string, string>;
     let admin: Record<string, string>;
 
@@ -24,7 +26,11 @@ medusaIntegrationTestRunner({
           { headers: store },
         )
       ).data.redirect;
-    const createCategory = async (handle: string): Promise<string> => {
+    /** Категория дерева магазина (`root` — корень другого магазина для проверки 400). */
+    const createCategory = async (
+      handle: string,
+      root: { slug: string; root_category_id: string } = shop.shop,
+    ): Promise<string> => {
       const {
         result: [category],
       } = await createProductCategoriesWorkflow(getContainer()).run({
@@ -32,9 +38,9 @@ medusaIntegrationTestRunner({
           product_categories: [
             {
               name: handle,
-              handle,
+              handle: toStoredHandle({ shop: root.slug, handle }),
               is_active: true,
-              parent_category_id: await testCategoryRoot(getContainer()),
+              parent_category_id: root.root_category_id,
             },
           ],
         },
@@ -44,9 +50,32 @@ medusaIntegrationTestRunner({
     const createPage = (body: Record<string, unknown>) =>
       api.post("/admin/filter-pages", body, { headers: admin });
 
+    // Посадочные, их категории и редиректы — в одном магазине
     beforeEach(async () => {
-      store = await storeHeaders(getContainer());
-      admin = await adminHeaders(api, getContainer());
+      shop = await testShopContext(api, getContainer());
+      ({ store, admin } = shop);
+    });
+
+    it("категория — только из дерева текущего магазина, адрес — с handle витрины", async () => {
+      const own = await createCategory("krossovki");
+      const foreign = await createCategory("krossovki", await createTestShop(getContainer()));
+
+      const created = await createPage({ category_id: own, title: "Nike" });
+      expect(created.data.filter_page.category).toEqual({ name: "krossovki", handle: "krossovki" });
+      await waitFor(() => trackedPath(getContainer(), created.data.filter_page.id));
+      expect(await trackedPath(getContainer(), created.data.filter_page.id)).toBe("/catalog/krossovki/nike");
+
+      const onCreate = await createPage({ category_id: foreign, title: "Nike" }).catch((error) => error.response);
+      expect(onCreate.status).toBe(400);
+      expect(onCreate.data.message).toContain("из другого магазина");
+
+      const onUpdate = await api
+        .post(`/admin/filter-pages/${created.data.filter_page.id}`, { category_id: foreign }, { headers: admin })
+        .catch((error) => error.response);
+      expect(onUpdate.status).toBe(400);
+
+      const missing = await createPage({ category_id: "pcat_missing", title: "Nike" }).catch((error) => error.response);
+      expect(missing.status).toBe(400);
     });
 
     it("handle уникален внутри категории, а в другой категории может повторяться", async () => {

@@ -2,34 +2,36 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
 import { SLUG_PATTERN, toSlug, toUniqueSlug } from "@shared/service/slug/slug";
-import { splitStoredHandle, toStoredHandle } from "@shared/shop/shop-slug";
+import { splitStoredHandle, toStoredHandle } from "@shared/shop/shop-handle";
 
-import {
-  toURLEntityRows,
-  URL_ENTITIES,
-  type URLEntityType,
-} from "../service/path";
+import { toURLEntityRows, URL_ENTITIES, type URLEntityType } from "../service/path";
+import { findEntityShop } from "./find-entity-shop";
 
 export type EntityHandle = {
   /** Сущность уже удалена — синхронизировать нечего. */
   found: boolean;
   handle: string;
-  /** Handle не slug (кириллица, заглавные) — на что заменить; `null` — менять не нужно. */
+  /**
+   * Handle Medusa не `{магазин}ː{slug}` (кириллица, заглавные, нет префикса магазина) — на что заменить;
+   * `null` — менять не нужно.
+   */
   next_handle: string | null;
-  /** Текущий путь на витрине; `null` — страницы нет. */
+  /** Текущий путь на витрине; `null` — страницы нет или магазин сущности неизвестен. */
   path: string | null;
+  /** Магазин сущности — в его таблицу редиректов пишутся 301; `null` — магазина нет, путь не отслеживаем. */
+  shop_id: string | null;
 };
 
+const NOT_FOUND: EntityHandle = { found: false, handle: "", next_handle: null, path: null, shop_id: null };
+
 /**
- * Общий шаг команд модуля, только чтение: текущий handle и путь, а если handle от Medusa не slug — свободный
- * транслитерированный вариант. `found: false` — сущности нет (удалена).
+ * Общий шаг команд модуля, только чтение: текущий handle, путь и магазин сущности, а если handle от Medusa не
+ * `{магазин}ː{slug}` — свободный вариант с префиксом магазина (свободный в магазине: handle других магазинов
+ * отличаются префиксом). У сущности без магазина исправляется только slug. `found: false` — сущности нет (удалена).
  */
 export const buildEntityHandleStep = createStep(
   "build-entity-handle",
-  async (
-    command: { entity_type: URLEntityType; entity_id: string },
-    { container },
-  ) => {
+  async (command: { entity_type: URLEntityType; entity_id: string }, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const config = URL_ENTITIES[command.entity_type];
 
@@ -39,25 +41,21 @@ export const buildEntityHandleStep = createStep(
       filters: { id: command.entity_id },
     });
     const [row] = toURLEntityRows(data);
-    if (!row)
-      return new StepResponse<EntityHandle>({
-        found: false,
-        handle: "",
-        next_handle: null,
-        path: null,
-      });
+    if (!row) return new StepResponse<EntityHandle>(NOT_FOUND);
 
     const handle = String(row.handle ?? "");
-    // Префикс магазина (`olisa--`) не трогаем: slug — только часть после него, иначе `--` схлопнется в `-`
+    const shop = await findEntityShop(query, config.shopOf(row));
+    const current = { found: true, handle, shop_id: shop?.id ?? null };
     const stored = splitStoredHandle(handle);
-    const withShop = (slug: string): string =>
-      stored.shop ? toStoredHandle({ shop: stored.shop, handle: slug }) : slug;
-    if (!config.renamable || SLUG_PATTERN.test(stored.handle))
+    // Магазин неизвестен (коллекция до выбора магазина, корень до связи) — префикс, какой есть, не трогаем
+    const prefix = shop?.slug ?? stored.shop;
+    const withShop = (slug: string): string => (prefix ? toStoredHandle({ shop: prefix, handle: slug }) : slug);
+
+    if (!config.renamable || (SLUG_PATTERN.test(stored.handle) && stored.shop === prefix))
       return new StepResponse<EntityHandle>({
-        found: true,
-        handle,
+        ...current,
         next_handle: null,
-        path: config.toPath(row),
+        path: shop ? config.toPath(row) : null,
       });
 
     const base =
@@ -73,11 +71,6 @@ export const buildEntityHandleStep = createStep(
       return taken.some((item) => item.id !== command.entity_id);
     });
 
-    return new StepResponse<EntityHandle>({
-      found: true,
-      handle,
-      next_handle: withShop(nextSlug),
-      path: null,
-    });
+    return new StepResponse<EntityHandle>({ ...current, next_handle: withShop(nextSlug), path: null });
   },
 );

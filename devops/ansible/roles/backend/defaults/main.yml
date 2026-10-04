@@ -9,6 +9,9 @@ backend_jwt_expires_in: 7d
 backend_jwt_secret: "{{ vault_medusa_jwt_secret }}"
 backend_cookie_secret: "{{ vault_medusa_cookie_secret }}"
 backend_auth_mfa_encryption_key: "{{ vault_medusa_auth_mfa_encryption_key }}"
+backend_shop_secrets_key: "{{ vault_shop_secrets_key }}"
+# Секрет вебхука ревалидации магазина из сида — тот же уходит фронту (roles/frontend, REVALIDATE_SECRET)
+backend_initial_shop_revalidate_secret: "{{ vault_storefront_revalidate_secret | default('') }}"
 
 backend_store_cors: "https://{{ frontend_domain }}"
 backend_admin_cors: "https://{{ backend_domain }}"

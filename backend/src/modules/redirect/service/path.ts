@@ -1,6 +1,16 @@
 import { MedusaError } from "@medusajs/framework/utils";
 
 import { isString, recordOrNull, records, text, textOrNull } from "@shared/query/narrow";
+import {
+  categoryShopId,
+  CATEGORY_SHOP_FIELDS,
+  COLLECTION_SHOP_FIELDS,
+  collectionShopId,
+  PRODUCT_SHOP_FIELDS,
+  toProductShop,
+} from "@shared/shop/catalog-shop";
+import { toPublicHandle } from "@shared/shop/shop-handle";
+import type { ShopRef } from "@shared/shop/shop-ref";
 
 /** 301 — переехало навсегда, 302 — временно, 410 — страницы больше нет. */
 export const REDIRECT_CODES = [301, 302, 410] as const;
@@ -26,77 +36,95 @@ export type URLEntityRow = { id: string } & Record<string, unknown>;
 export const toURLEntityRows = (rows: unknown[]): URLEntityRow[] =>
   records(rows).flatMap((row) => (isString(row.id) ? [{ ...row, id: row.id }] : []));
 
+/**
+ * Магазин сущности, как его видно из строки Query (своё поле или связь); slug для префикса handle дочитывает шаг.
+ * `null` — магазина нет: путь не отслеживается, редиректов не будет.
+ */
+export type EntityShopRef = ShopRef | null;
+
+const shopById = (id: unknown): EntityShopRef => (isString(id) && id ? { id } : null);
+
 type URLEntity = {
   /** Сущность в Query. */
   entity: string;
   /** Поле названия — из него slug, если handle пуст после транслитерации. */
   title: string;
-  /** Поля для Query: handle, название и всё, что нужно пути. */
+  /** Поля для Query: handle, название, магазин и всё, что нужно пути. */
   fields: string[];
   /**
-   * Handle задаёт Medusa (товар, категория, коллекция) — он может прийти кириллицей, и его переименовывает
-   * `sync-entity-url`. Свои сущности получают slug сразу при сохранении (CRUD-фабрика), их не переименовываем.
+   * Handle задаёт Medusa (товар, категория, коллекция): он может прийти кириллицей и без префикса магазина, его
+   * переименовывает `sync-entity-url` в `{магазин}ː{slug}`. Свои сущности получают slug сразу при сохранении
+   * (CRUD-фабрика) и хранят магазин в `shop_id`, их не переименовываем.
    */
   renamable: boolean;
+  /** Магазин сущности: в его таблицу редиректов пишутся 301 и 410. */
+  shopOf: (row: URLEntityRow) => EntityShopRef;
   /** Запасной slug: `{prefix}-{хвост id}`. */
   prefix: string;
-  /** Путь на витрине; `null` — страницы нет (у посадочной не нашлась категория). */
+  /** Путь на витрине — с handle без префикса магазина; `null` — страницы нет (у посадочной не нашлась категория). */
   toPath: (row: URLEntityRow) => string | null;
 };
 
-const handleOf = (row: URLEntityRow): string => text(row.handle);
+const handleOf = (row: URLEntityRow): string => toPublicHandle(text(row.handle));
+const ownShop = (row: URLEntityRow): EntityShopRef => shopById(row.shop_id);
 
 /** Пути страниц сущностей. Должны совпадать с `frontend/src/shared/config/routes.ts`. */
 export const URL_ENTITIES: Record<URLEntityType, URLEntity> = {
   product: {
     entity: "product",
     title: "title",
-    fields: ["id", "handle", "title"],
+    fields: ["id", "handle", "title", ...PRODUCT_SHOP_FIELDS],
     renamable: true,
+    shopOf: (row) => shopById(toProductShop(row).shop_id),
     prefix: "product",
     toPath: (row) => `/products/${handleOf(row)}`,
   },
   product_category: {
     entity: "product_category",
     title: "name",
-    fields: ["id", "handle", "name"],
+    fields: ["id", "handle", "name", ...CATEGORY_SHOP_FIELDS],
     renamable: true,
+    shopOf: (row) => shopById(categoryShopId(row)),
     prefix: "category",
     toPath: (row) => `/catalog/${handleOf(row)}`,
   },
   product_collection: {
     entity: "product_collection",
     title: "title",
-    fields: ["id", "handle", "title"],
+    fields: ["id", "handle", "title", ...COLLECTION_SHOP_FIELDS],
     renamable: true,
+    shopOf: (row) => shopById(collectionShopId(row)),
     prefix: "collection",
     toPath: (row) => `/collections/${handleOf(row)}`,
   },
   brand: {
     entity: "brand",
     title: "name",
-    fields: ["id", "handle", "name"],
+    fields: ["id", "shop_id", "handle", "name"],
     renamable: false,
+    shopOf: ownShop,
     prefix: "brand",
     toPath: (row) => `/brands/${handleOf(row)}`,
   },
   article: {
     entity: "article",
     title: "title",
-    fields: ["id", "handle", "title"],
+    fields: ["id", "shop_id", "handle", "title"],
     renamable: false,
+    shopOf: ownShop,
     prefix: "article",
     toPath: (row) => `/blog/${handleOf(row)}`,
   },
   filter_page: {
     entity: "filter_page",
     title: "title",
-    fields: ["id", "handle", "title", "category_id", "product_category.handle"],
+    fields: ["id", "shop_id", "handle", "title", "category_id", "product_category.handle"],
     renamable: false,
+    shopOf: ownShop,
     prefix: "filter-page",
     toPath: (row) => {
       const categoryHandle = textOrNull(recordOrNull(row.product_category)?.handle);
-      return categoryHandle ? `/catalog/${categoryHandle}/${handleOf(row)}` : null;
+      return categoryHandle ? `/catalog/${toPublicHandle(categoryHandle)}/${handleOf(row)}` : null;
     },
   },
 };

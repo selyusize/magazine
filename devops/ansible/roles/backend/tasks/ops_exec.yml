@@ -1,0 +1,20 @@
+# Разовая команда в контейнере backend-tools (образ и env backend): make backend-exec CMD="…".
+# Скрипты из backend/src/scripts в образе собраны в .js: medusa exec ./src/scripts/<имя>.js
+- name: Проверить команду
+  ansible.builtin.assert:
+    that: backend_cmd | length > 0
+    fail_msg: 'Передайте команду: make backend-exec CMD="pnpm exec medusa exec ./src/scripts/<скрипт>.js"'
+    quiet: true
+
+- name: Команда в backend-tools
+  ansible.builtin.command:
+    argv: [docker, compose, run, --rm, -T, backend-tools, sh, -c, "{{ backend_cmd }}"]
+    chdir: "{{ backend_dir }}"
+  register: backend_exec
+  changed_when: true
+  no_log: "{{ backend_cmd_secret | default(false) | bool }}"
+
+- name: Вывод команды
+  ansible.builtin.debug:
+    msg: "{{ (backend_exec.stdout_lines + backend_exec.stderr_lines)[-200:] }}"
+  when: not (backend_cmd_secret | default(false) | bool)

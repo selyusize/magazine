@@ -9,13 +9,8 @@ import {
 } from "@medusajs/medusa/core-flows";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
-import {
-  adminHeaders,
-  storeHeaders,
-  testCategoryRoot,
-  testSalesChannels,
-  waitFor,
-} from "./helpers/auth";
+import { toPublicHandle } from "../../src/shared/shop/shop-handle";
+import { type TestShopContext, testShopContext, waitFor } from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
 
 jest.setTimeout(120 * 1000);
@@ -26,6 +21,7 @@ medusaIntegrationTestRunner({
   inApp: true,
   env: {},
   testSuite: ({ api, getContainer }) => {
+    let shop: TestShopContext;
     let store: Record<string, string>;
     let admin: Record<string, string>;
 
@@ -41,9 +37,11 @@ medusaIntegrationTestRunner({
     const save = (body: Record<string, unknown>) =>
       api.post("/admin/redirects", body, { headers: admin });
 
+    // Пути и редиректы у каждого магазина свои: сущности создаются и читаются в одном магазине
     beforeEach(async () => {
-      store = await storeHeaders(getContainer());
-      admin = await adminHeaders(api, getContainer());
+      shop = await testShopContext(api, getContainer());
+      store = shop.store;
+      admin = shop.admin;
     });
 
     describe("ручные правила", () => {
@@ -159,14 +157,15 @@ medusaIntegrationTestRunner({
     });
 
     describe("URL сущностей", () => {
-      const categoryHandle = async (id: string): Promise<string> => {
+      /** Handle витрины; `null` — в БД ещё не `{магазин}ː{slug}` (синхронизация адреса асинхронная). */
+      const categoryHandle = async (id: string): Promise<string | null> => {
         const query = getContainer().resolve(ContainerRegistrationKeys.QUERY);
         const { data } = await query.graph({
           entity: "product_category",
           fields: ["handle"],
           filters: { id },
         });
-        return data[0].handle;
+        return data[0].handle.startsWith(`${shop.shop.slug}ː`) ? toPublicHandle(data[0].handle) : null;
       };
 
       it("транслитерирует handle и ставит 301 при переименовании, без цепочек", async () => {
@@ -178,7 +177,7 @@ medusaIntegrationTestRunner({
               {
                 name: "Мужская обувь",
                 is_active: true,
-                parent_category_id: await testCategoryRoot(getContainer()),
+                parent_category_id: shop.root_category_id,
               },
             ],
           },
@@ -223,7 +222,7 @@ medusaIntegrationTestRunner({
               {
                 title: "Футболка хлопковая",
                 status: "draft",
-                sales_channels: await testSalesChannels(getContainer()),
+                sales_channels: shop.sales_channels,
                 options: [{ title: "Размер", values: ["M"] }],
               },
             ],
@@ -240,7 +239,8 @@ medusaIntegrationTestRunner({
         };
 
         await waitFor(
-          async () => (await productHandle()) === "futbolka-hlopkovaya",
+          async () =>
+            (await productHandle()) === `${shop.shop.slug}ːfutbolka-hlopkovaya`,
         );
 
         await updateProductsWorkflow(getContainer()).run({
@@ -268,7 +268,7 @@ medusaIntegrationTestRunner({
                   title: "Кепка",
                   handle,
                   status: "draft",
-                  sales_channels: await testSalesChannels(getContainer()),
+                  sales_channels: shop.sales_channels,
                   options: [{ title: "Размер", values: ["M"] }],
                 },
               ],
@@ -317,7 +317,7 @@ medusaIntegrationTestRunner({
                 name: "Sale",
                 handle: "sale",
                 is_active: true,
-                parent_category_id: await testCategoryRoot(getContainer()),
+                parent_category_id: shop.root_category_id,
               },
             ],
           },
@@ -345,7 +345,7 @@ medusaIntegrationTestRunner({
       });
 
       it("делает handle уникальным", async () => {
-        const parent_category_id = await testCategoryRoot(getContainer());
+        const parent_category_id = shop.root_category_id;
         await createProductCategoriesWorkflow(getContainer()).run({
           input: {
             product_categories: [

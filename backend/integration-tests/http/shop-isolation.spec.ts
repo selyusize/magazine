@@ -1,11 +1,20 @@
-import { createProductCategoriesWorkflow, createProductsWorkflow } from "@medusajs/medusa/core-flows";
+import { Modules } from "@medusajs/framework/utils";
+import {
+  createCollectionsWorkflow,
+  createProductCategoriesWorkflow,
+  createProductsWorkflow,
+  createRegionsWorkflow,
+} from "@medusajs/medusa/core-flows";
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 
 import { EXCHANGE_MODULE } from "../../src/modules/exchange";
 import type { ExchangeModuleService } from "../../src/modules/exchange/service/exchange-module-service";
 import type { CreatedShopDTO } from "../../src/modules/shop/command/create-shop/dto";
+import { toStoredHandle } from "../../src/shared/shop/shop-handle";
 
 import { adminShopHeaders, waitFor } from "./helpers/auth";
+import { trackedPath } from "./helpers/redirects";
+import { buildProductIndex } from "./helpers/search";
 
 jest.setTimeout(120 * 1000);
 
@@ -198,6 +207,181 @@ medusaIntegrationTestRunner({
 
       expect((await get(`/admin/products/${product.id}/catalog`, a)).status).toBe(200);
       expect((await get(`/admin/supplier-offers/${offer.id}`, a)).data.supplier_offer.quantity).toBe(1);
+    });
+
+    it("статьи, посадочные и редиректы: списки только своего магазина, чужие по id — 404, витрина видит только свои правила", async () => {
+      const article = (await post("/admin/articles", { title: "Как выбрать утюг" }, a)).data.article;
+      const {
+        result: [category],
+      } = await createProductCategoriesWorkflow(getContainer()).run({
+        input: {
+          product_categories: [{ name: "Утюги", is_active: true, parent_category_id: shopA.root_category_id }],
+        },
+      });
+      const page = (await post("/admin/filter-pages", { category_id: category.id, title: "Philips" }, a)).data
+        .filter_page;
+      const redirect = (await post("/admin/redirects", { from_path: "/old", to_path: "/new", code: 301 }, a)).data
+        .redirect;
+      // Те же адреса в магазине B — свои, не конфликтуют
+      expect((await post("/admin/articles", { title: "Как выбрать утюг" }, b)).data.article.handle).toBe(article.handle);
+      await post("/admin/redirects", { from_path: "/old", to_path: "/other", code: 302 }, b);
+
+      expect((await get("/admin/articles", b)).data.articles).toHaveLength(1);
+      expect((await get("/admin/filter-pages", b)).data.filter_pages).toEqual([]);
+      expect((await get("/admin/redirects", b)).data.redirects).toEqual([
+        expect.objectContaining({ from_path: "/old", to_path: "/other" }),
+      ]);
+
+      const foreign = [
+        get(`/admin/articles/${article.id}`, b),
+        post(`/admin/articles/${article.id}`, { title: "Чужая" }, b),
+        remove(`/admin/articles/${article.id}`, b),
+        get(`/admin/filter-pages/${page.id}`, b),
+        post(`/admin/filter-pages/${page.id}`, { title: "Чужая" }, b),
+        remove(`/admin/filter-pages/${page.id}`, b),
+        remove(`/admin/redirects/${redirect.id}`, b),
+      ];
+      for (const response of await Promise.all(foreign)) expect(response.status).toBe(404);
+
+      const storeOf = (shop: CreatedShopDTO) => ({ "x-publishable-api-key": shop.publishable_api_key ?? "" });
+      const resolve = async (shop: CreatedShopDTO) =>
+        (await get("/store/redirects/resolve?path=/old", storeOf(shop))).data.redirect;
+      expect(await resolve(shopA)).toEqual({ from_path: "/old", to_path: "/new", code: 301 });
+      expect(await resolve(shopB)).toEqual({ from_path: "/old", to_path: "/other", code: 302 });
+      expect((await get("/store/redirects", storeOf(shopA))).data.redirects).toEqual([
+        { from_path: "/old", to_path: "/new", code: 301 },
+      ]);
+    });
+
+    it("витрина: товары, поиск, категории, коллекции и корзины — только магазина ключа, чужие по id — 404", async () => {
+      const storeOf = (shop: CreatedShopDTO) => ({ "x-publishable-api-key": shop.publishable_api_key ?? "" });
+      const [storeA, storeB] = [storeOf(shopA), storeOf(shopB)];
+
+      /** Опубликованный товар магазина: статус — напрямую в модуле, когда адрес синхронизирован (см. shop-handles). */
+      const createProduct = async (shop: CreatedShopDTO, title: string): Promise<string> => {
+        const {
+          result: [product],
+        } = await createProductsWorkflow(getContainer()).run({
+          input: {
+            products: [
+              {
+                title,
+                status: "draft",
+                sales_channels: [{ id: shop.sales_channel_id ?? "" }],
+                options: [{ title: "Размер", values: ["M"] }],
+                variants: [{ title: "M", options: { Размер: "M" }, prices: [{ amount: 100, currency_code: "rub" }] }],
+              },
+            ],
+          },
+        });
+        await waitFor(() => trackedPath(getContainer(), product.id));
+        await getContainer().resolve(Modules.PRODUCT).updateProducts(product.id, { status: "published" });
+        return product.id;
+      };
+      const productA = await createProduct(shopA, "Утюг Альфа");
+      const productB = await createProduct(shopB, "Чайник Бета");
+
+      const {
+        result: [categoryA, categoryB],
+      } = await createProductCategoriesWorkflow(getContainer()).run({
+        input: {
+          product_categories: [
+            { name: "Утюги", is_active: true, parent_category_id: shopA.root_category_id },
+            { name: "Чайники", is_active: true, parent_category_id: shopB.root_category_id },
+          ],
+        },
+      });
+      const {
+        result: [collectionA, collectionB],
+      } = await createCollectionsWorkflow(getContainer()).run({
+        input: {
+          collections: [
+            { title: "Лето", handle: toStoredHandle({ shop: shopA.slug, handle: "leto" }) },
+            { title: "Зима", handle: toStoredHandle({ shop: shopB.slug, handle: "zima" }) },
+          ],
+        },
+      });
+      await waitFor(() => trackedPath(getContainer(), categoryA.id));
+      await waitFor(() => trackedPath(getContainer(), categoryB.id));
+
+      const ids = (rows: { id: string }[]) => rows.map((row) => row.id);
+
+      // Товары: Medusa ограничивает каналом ключа
+      expect(ids((await get("/store/products?fields=id", storeB)).data.products)).toEqual([productB]);
+      expect((await get(`/store/products/${productA}`, storeB)).status).toBe(404);
+      expect((await get(`/store/products/${productA}`, storeA)).status).toBe(200);
+
+      // Поиск: индекс сужен до каналов ключа
+      await buildProductIndex(getContainer());
+      const search = async (store: Record<string, string>) =>
+        ids((await post("/store/search", { entity: "product", fields: ["id"] }, store)).data.results[0].hits);
+      await waitFor(async () => (await search(storeA)).includes(productA));
+      await waitFor(async () => (await search(storeB)).includes(productB));
+      expect(await search(storeA)).not.toContain(productB);
+      expect(await search(storeB)).not.toContain(productA);
+
+      // Категории: свои — с корнем дерева, чужие по id — 404
+      const categoriesB = ids((await get("/store/product-categories?fields=id&limit=100", storeB)).data.product_categories);
+      expect(categoriesB).toEqual(expect.arrayContaining([categoryB.id, shopB.root_category_id]));
+      expect(categoriesB).not.toContain(categoryA.id);
+      expect(categoriesB).not.toContain(shopA.root_category_id);
+      expect((await get(`/store/product-categories/${categoryA.id}`, storeB)).status).toBe(404);
+      expect((await get(`/store/product-categories/${categoryB.id}`, storeB)).data.product_category.id).toBe(categoryB.id);
+
+      // Коллекции
+      expect(ids((await get("/store/collections?fields=id", storeA)).data.collections)).toEqual([collectionA.id]);
+      expect((await get(`/store/collections/${collectionB.id}`, storeA)).status).toBe(404);
+      expect((await get(`/store/collections/${collectionA.id}`, storeA)).data.collection.handle).toBe("leto");
+
+      // Корзина магазина A по ключу B не видна (регион сетевой — один на все магазины)
+      const {
+        result: [region],
+      } = await createRegionsWorkflow(getContainer()).run({
+        input: { regions: [{ name: "Россия", currency_code: "rub", countries: ["ru"] }] },
+      });
+      const cart = (await post("/store/carts", { region_id: region.id }, storeA)).data.cart;
+      expect((await get(`/store/carts/${cart.id}`, storeA)).status).toBe(200);
+      expect((await get(`/store/carts/${cart.id}`, storeB)).status).toBe(404);
+      expect((await post(`/store/carts/${cart.id}`, { email: "x@test.local" }, storeB)).status).toBe(404);
+    });
+
+    it("канал продаж: товары списком к каналу не привязываются — товар живёт в одном магазине", async () => {
+      const {
+        result: [product],
+      } = await createProductsWorkflow(getContainer()).run({
+        input: {
+          products: [
+            {
+              title: "Утюг",
+              status: "draft",
+              sales_channels: [{ id: shopA.sales_channel_id ?? "" }],
+              options: [{ title: "Размер", values: ["M"] }],
+            },
+          ],
+        },
+      });
+      const { "x-shop-id": _shop, ...admin } = a;
+      const response = await post(
+        `/admin/sales-channels/${shopB.sales_channel_id}/products`,
+        { add: [product.id] },
+        admin,
+      );
+      expect(response.status).toBe(400);
+      expect(response.data.message).toContain("ровно в одном канале");
+    });
+
+    it("ревалидация витрины: журнал и секрет вебхука — только своего магазина", async () => {
+      await post("/admin/storefront-revalidations", {}, a);
+      const journalA = (await get("/admin/storefront-revalidations", a)).data.storefront_revalidations;
+      const journalB = (await get("/admin/storefront-revalidations", b)).data.storefront_revalidations;
+      const idsA = journalA.map((row: { id: string }) => row.id);
+      expect(idsA.length).toBeGreaterThan(0);
+      expect(journalB.map((row: { id: string }) => row.id)).not.toEqual(expect.arrayContaining(idsA));
+
+      const secretA = (await get("/admin/shops/current/revalidate-secret", a)).data.storefront_webhook;
+      const secretB = (await get("/admin/shops/current/revalidate-secret", b)).data.storefront_webhook;
+      expect(secretA.revalidate_secret).not.toBe(secretB.revalidate_secret);
+      expect(secretA.revalidate_url).toBe(`${shopA.storefront_url}/api/revalidate`);
     });
   },
 });

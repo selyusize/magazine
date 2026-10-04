@@ -1,7 +1,7 @@
 # Medusa: pull образа → миграции → API-сервер без простоя → worker.
 #   make deploy-backend TAG=sha-abc1234
 - name: Backend
-  hosts: shop
+  hosts: backend
   become: true
   roles:
     - role: backend

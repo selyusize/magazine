@@ -2,8 +2,9 @@
   ansible.builtin.assert:
     that:
       - frontend_domain | length > 0
+      - storefront_slug | length > 0
       - image_prefix | length > 0
-    fail_msg: Задайте domain и image_prefix в group_vars
+    fail_msg: Задайте frontend_domain, storefront_slug и image_prefix в group_vars
     quiet: true
 
 - name: Каталог frontend
@@ -43,6 +44,6 @@
 
 - name: Обновить витрину без простоя
   ansible.builtin.command:
-    cmd: "{{ project_dir }}/bin/compose-rollout {{ frontend_dir }} frontend {{ frontend_rollout_timeout }} {{ project_name }}-frontend"
+    cmd: "{{ project_dir }}/bin/compose-rollout {{ frontend_dir }} frontend {{ frontend_rollout_timeout }} {{ frontend_container }}"
   register: frontend_rollout
   changed_when: "'ROLLOUT: unchanged' not in frontend_rollout.stdout"

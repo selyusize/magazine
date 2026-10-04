@@ -1,6 +1,7 @@
 import { Injectable } from "@shared/container";
 import { AbstractFetcher } from "@shared/query/abstract-fetcher";
 import { recordOf, records, text, textOrNull } from "@shared/query/narrow";
+import { toPublicHandle } from "@shared/shop/shop-handle";
 
 import type { ShopCategoryDTO } from "./dto";
 import type { GetCategoriesByShopIdQuery } from "./query";
@@ -8,7 +9,7 @@ import type { GetCategoriesByShopIdQuery } from "./query";
 const toShopCategoryDTO = (row: Record<string, unknown>): ShopCategoryDTO => ({
   id: text(row.id),
   name: text(row.name),
-  handle: text(row.handle),
+  handle: toPublicHandle(text(row.handle)),
   parent_category_id: textOrNull(row.parent_category_id),
 });
 

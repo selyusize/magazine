@@ -16,6 +16,7 @@ type API = {
 };
 
 let shopCounter = 0;
+let adminCounter = 0;
 
 /**
  * Магазин для Store API: ключ без магазина Store API не пускает (403), поэтому — через `create-shop`, как кнопка в
@@ -67,7 +68,9 @@ export async function adminHeaders(
   api: API,
   container: MedusaContainer,
 ): Promise<Record<string, string>> {
-  const email = `admin-${Date.now()}@test.local`;
+  // Счётчик — два админа в одну миллисекунду (`Promise.all`) получили бы один email
+  adminCounter += 1;
+  const email = `admin-${adminCounter}-${Date.now()}@test.local`;
   const password = "secret-password";
 
   await api.post("/auth/user/emailpass/register", { email, password });
@@ -110,4 +113,28 @@ export async function waitFor<T>(
       throw new Error("waitFor: условие не выполнилось вовремя");
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
+}
+
+/** Один магазин целиком: ключ витрины, админ с его `x-shop-id`, корень дерева и канал для товаров. */
+export type TestShopContext = {
+  shop: CreatedShopDTO;
+  store: Record<string, string>;
+  admin: Record<string, string>;
+  root_category_id: string;
+  sales_channels: { id: string }[];
+};
+
+/**
+ * Магазин для сценариев «сущность → её адрес → редирект»: пути и редиректы у каждого магазина свои, поэтому сущности
+ * создаются и читаются в одном магазине.
+ */
+export async function testShopContext(api: API, container: MedusaContainer): Promise<TestShopContext> {
+  const { headers, shop } = await adminShopHeaders(api, container);
+  return {
+    shop,
+    store: { "x-publishable-api-key": shop.publishable_api_key ?? "" },
+    admin: headers,
+    root_category_id: shop.root_category_id,
+    sales_channels: [{ id: shop.sales_channel_id ?? "" }],
+  };
 }

@@ -1,2 +1,4 @@
-/** Вся таблица целиком — параметров нет. */
-export type GetRedirectsForStorefrontQuery = Record<string, never>;
+/** Вся таблица магазина целиком. */
+export type GetRedirectsForStorefrontQuery = {
+  shop_id: string;
+};

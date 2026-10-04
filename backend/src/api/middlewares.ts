@@ -15,6 +15,9 @@ import { adminProductAttributesMiddleware } from "./admin/products/[id]/attribut
 import { adminProductCatalogMiddleware } from "./admin/products/[id]/catalog/middleware";
 import { adminRedirectsMiddleware } from "./admin/redirects/middleware";
 import { adminRedirectsImportMiddleware } from "./admin/redirects/import/middleware";
+import { adminSalesChannelProductsMiddleware } from "./admin/sales-channels/[id]/products/middleware";
+import { adminCollectionProductsMiddleware } from "./admin/collections/[id]/products/middleware";
+import { adminCollectionShopMiddleware } from "./admin/collections/[id]/shop/middleware";
 import { adminShopsMiddleware } from "./admin/shops/middleware";
 import { adminSupplierOffersMiddleware } from "./admin/supplier-offers/middleware";
 import { adminSuppliersMiddleware } from "./admin/suppliers/middleware";
@@ -54,5 +57,8 @@ export default defineMiddlewares({
     ...adminAttributesMiddleware,
     ...adminProductCatalogMiddleware,
     ...adminProductAttributesMiddleware,
+    ...adminSalesChannelProductsMiddleware,
+    ...adminCollectionShopMiddleware,
+    ...adminCollectionProductsMiddleware,
   ],
 });

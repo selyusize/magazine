@@ -17,12 +17,16 @@ const toArticleDTO = (row: CRUDRow): ArticleDTO => ({
   updated_at: toDate(row.updated_at),
 });
 
-/** CRUD статей для админки — /admin/articles. Handle — slug из заголовка, события `article.*` → редиректы. */
+/**
+ * CRUD статей для админки — /admin/articles, в текущем магазине. Handle — slug из заголовка, уникален в магазине;
+ * события `article.*` → редиректы магазина.
+ */
 export const articleCRUD = defineCRUD<ArticleDTO>({
   entity: "article",
   module: CONTENT_MODULE,
   model: "Article",
   label: "статья",
+  shopScoped: true,
   response: { one: "article", many: "articles" },
   fields: [
     "id",
@@ -36,7 +40,7 @@ export const articleCRUD = defineCRUD<ArticleDTO>({
   ],
   search: ["title", "handle"],
   filters: ["status"],
-  handle: { from: "title" },
+  handle: { from: "title", scope: ["shop_id"] },
   schemas: { create: CreateArticleSchema, update: UpdateArticleSchema },
   toDTO: toArticleDTO,
 });

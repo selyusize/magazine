@@ -14,11 +14,13 @@ export type ProductShopCandidate = {
   category_shop_ids: readonly (string | null)[];
   /** Магазины характеристик со значениями у товара и вариантов. */
   attribute_shop_ids: readonly string[];
+  /** Магазин коллекции товара; коллекции нет или у неё ещё нет магазина — `null`. */
+  collection_shop_id: string | null;
 };
 
 /**
  * Правила «товар живёт в одном магазине» (план, шаг 4): товар — ровно в одном канале магазина, бренд, основная
- * категория, категории и характеристики — из этого магазина. Порядок — порядок сообщений; правило без магазина товара
+ * категория, категории, характеристики и коллекция — из этого магазина. Порядок — порядок сообщений; правило без магазина товара
  * проверяет только первое.
  */
 const PRODUCT_SHOP_RULES = [
@@ -46,6 +48,11 @@ const PRODUCT_SHOP_RULES = [
     code: "foreign_attributes",
     message: "характеристики из другого магазина",
     broken: (c: ProductShopCandidate) => c.attribute_shop_ids.some((shopId) => shopId !== c.shop_id),
+  },
+  {
+    code: "foreign_collection",
+    message: "коллекция из другого магазина",
+    broken: (c: ProductShopCandidate) => c.collection_shop_id !== null && c.collection_shop_id !== c.shop_id,
   },
 ] as const;
 

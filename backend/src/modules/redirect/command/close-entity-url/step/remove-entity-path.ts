@@ -9,10 +9,13 @@ export type RemoveEntityPathInput = {
   entity_id: string;
 };
 
-type Output = { path: string | null };
-type Compensation = RemoveEntityPathInput & { path: string };
+type Output = { path: string | null; shop_id: string | null };
+type Compensation = RemoveEntityPathInput & { path: string; shop_id: string };
 
-/** Забывает путь удалённой сущности и отдаёт его; `path: null` — путь не отслеживался (или уже закрыт). */
+/**
+ * Забывает путь удалённой сущности и отдаёт его вместе с магазином (самой сущности уже нет — магазин известен только
+ * из записи пути); `path: null` — путь не отслеживался (или уже закрыт).
+ */
 export const removeEntityPathStep = createStep(
   "remove-entity-path",
   async (input: RemoveEntityPathInput, { container }) => {
@@ -23,14 +26,14 @@ export const removeEntityPathStep = createStep(
     });
     if (!current)
       return new StepResponse<Output, Compensation | null>(
-        { path: null },
+        { path: null, shop_id: null },
         null,
       );
 
     await paths.deleteEntityPaths(current.id);
     return new StepResponse<Output, Compensation | null>(
-      { path: current.path },
-      { ...input, path: current.path },
+      { path: current.path, shop_id: current.shop_id },
+      { ...input, path: current.path, shop_id: current.shop_id },
     );
   },
   async (compensation, { container }) => {

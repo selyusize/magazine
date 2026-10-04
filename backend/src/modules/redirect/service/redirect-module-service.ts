@@ -13,10 +13,12 @@ import { assertRedirect, normalizePath, type RedirectCode } from "./path";
 
 export type RedirectRow = Pick<
   RedirectEntity,
-  "id" | "from_path" | "to_path" | "code" | "entity_type" | "entity_id"
+  "id" | "shop_id" | "from_path" | "to_path" | "code" | "entity_type" | "entity_id"
 >;
 
+/** Правило магазина `shop_id`: цепочки схлопываются и перезапись по `from_path` идут только внутри магазина. */
 export type RedirectInput = {
+  shop_id: string;
   from_path: string;
   to_path: string | null;
   code: RedirectCode;
@@ -24,15 +26,17 @@ export type RedirectInput = {
   entity_id?: string | null;
 };
 
-/** Текущий путь сущности на витрине. */
+/** Текущий путь сущности на витрине её магазина. */
 export type EntityPathInput = {
+  shop_id: string;
   entity_type: string;
   entity_id: string;
   path: string;
 };
 
-/** Сущность переехала: со старого пути нужен 301 на новый. */
+/** Сущность переехала: со старого пути нужен 301 на новый — в её магазине. */
 export type EntityPathMove = {
+  shop_id: string;
   entity_type: string;
   entity_id: string;
   from_path: string;
@@ -42,7 +46,7 @@ export type EntityPathMove = {
 /** Откат `trackEntityPaths`: созданные записи путей, прежние пути изменённых и снятые с живых путей правила. */
 export type TrackedPathChanges = {
   created: string[];
-  updated: Pick<EntityPathEntity, "id" | "path">[];
+  updated: Pick<EntityPathEntity, "id" | "shop_id" | "path">[];
   redirects: RedirectChanges;
 };
 
@@ -55,6 +59,7 @@ export type RedirectChanges = {
 
 const toRow = (redirect: RedirectEntity): RedirectRow => ({
   id: redirect.id,
+  shop_id: redirect.shop_id,
   from_path: redirect.from_path,
   to_path: redirect.to_path,
   code: redirect.code,
@@ -62,7 +67,10 @@ const toRow = (redirect: RedirectEntity): RedirectRow => ({
   entity_id: redirect.entity_id,
 });
 
-/** Таблицы редиректов и путей сущностей. Пишут только шаги команд модуля redirect. */
+/**
+ * Таблицы редиректов и путей сущностей. Пишут только шаги команд модуля redirect. Каждое правило и путь — в своём
+ * магазине: одинаковые адреса двух магазинов не пересекаются.
+ */
 export class RedirectModuleService extends MedusaService({
   Redirect,
   EntityPath,
@@ -80,13 +88,13 @@ export class RedirectModuleService extends MedusaService({
     return this.saveRedirects_(inputs, sharedContext);
   }
 
-  /** Путь снова открыт (на нём живая страница) — правило с него удаляем. */
+  /** Путь магазина снова открыт (на нём живая страница) — правило с него удаляем. */
   @InjectManager()
   async releasePath(
-    path: string,
+    input: { shop_id: string; path: string },
     @MedusaContext() sharedContext: Context = {},
   ): Promise<RedirectChanges> {
-    return this.releasePath_(path, sharedContext);
+    return this.releasePath_(input, sharedContext);
   }
 
   /**
@@ -135,12 +143,12 @@ export class RedirectModuleService extends MedusaService({
 
   @InjectTransactionManager()
   protected async releasePath_(
-    path: string,
+    input: { shop_id: string; path: string },
     @MedusaContext() sharedContext: Context = {},
   ): Promise<RedirectChanges> {
     const changes: RedirectChanges = { created: [], updated: [], deleted: [] };
     const [redirect] = await this.listRedirects(
-      { from_path: normalizePath(path) },
+      { shop_id: input.shop_id, from_path: normalizePath(input.path) },
       {},
       sharedContext,
     );
@@ -166,7 +174,10 @@ export class RedirectModuleService extends MedusaService({
 
     for (const input of inputs) {
       const path = normalizePath(input.path);
-      const released = await this.releasePath_(path, sharedContext);
+      const released = await this.releasePath_(
+        { shop_id: input.shop_id, path },
+        sharedContext,
+      );
       changes.redirects.deleted.push(...released.deleted);
 
       const [current] = await this.listEntityPaths(
@@ -184,9 +195,17 @@ export class RedirectModuleService extends MedusaService({
       }
       if (current.path === path) continue;
 
-      changes.updated.push({ id: current.id, path: current.path });
-      await this.updateEntityPaths({ id: current.id, path }, sharedContext);
+      changes.updated.push({
+        id: current.id,
+        shop_id: current.shop_id,
+        path: current.path,
+      });
+      await this.updateEntityPaths(
+        { id: current.id, shop_id: input.shop_id, path },
+        sharedContext,
+      );
       moves.push({
+        shop_id: input.shop_id,
         entity_type: input.entity_type,
         entity_id: input.entity_id,
         from_path: current.path,
@@ -229,6 +248,7 @@ export class RedirectModuleService extends MedusaService({
     changes: RedirectChanges,
     @MedusaContext() sharedContext: Context = {},
   ): Promise<RedirectRow> {
+    const { shop_id } = input;
     const from_path = normalizePath(input.from_path);
     let to_path = input.to_path === null ? null : normalizePath(input.to_path);
     let code = input.code;
@@ -237,7 +257,7 @@ export class RedirectModuleService extends MedusaService({
     // Цель сама переехала — ведём сразу в конец (цепочек в таблице нет, поэтому хватает одного шага)
     if (to_path !== null) {
       const [next] = await this.listRedirects(
-        { from_path: to_path },
+        { shop_id, from_path: to_path },
         {},
         sharedContext,
       );
@@ -256,7 +276,7 @@ export class RedirectModuleService extends MedusaService({
 
     // Кто вёл на from_path — теперь ведёт туда же, куда и он
     const incoming = await this.listRedirects(
-      { to_path: from_path },
+      { shop_id, to_path: from_path },
       {},
       sharedContext,
     );
@@ -278,6 +298,7 @@ export class RedirectModuleService extends MedusaService({
     }
 
     const data = {
+      shop_id,
       from_path,
       to_path,
       code,
@@ -285,7 +306,7 @@ export class RedirectModuleService extends MedusaService({
       entity_id: input.entity_id ?? null,
     };
     const [existing] = await this.listRedirects(
-      { from_path },
+      { shop_id, from_path },
       {},
       sharedContext,
     );

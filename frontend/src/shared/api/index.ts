@@ -1,3 +1,4 @@
+export { cacheTags } from "./cache-tags";
 export { ApiError, http } from "./http";
 export { getQueryClient } from "./query-client";
 

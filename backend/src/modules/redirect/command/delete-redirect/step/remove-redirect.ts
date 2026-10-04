@@ -26,6 +26,7 @@ export const removeRedirectStep = createStep(
       deleted: [
         {
           id: redirect.id,
+          shop_id: redirect.shop_id,
           from_path: redirect.from_path,
           to_path: redirect.to_path,
           code: redirect.code,
@@ -34,7 +35,7 @@ export const removeRedirectStep = createStep(
         },
       ],
     };
-    return new StepResponse(undefined, changes);
+    return new StepResponse({ shop_id: redirect.shop_id }, changes);
   },
   async (changes, { container }) => {
     if (!changes) return;

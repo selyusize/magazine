@@ -1,6 +1,8 @@
 import { defineCRUD } from "@shared/crud/define-crud";
 import type { CRUDRow } from "@shared/crud/definition";
 import { recordOf, recordOrNull, text, texts, toDate } from "@shared/query/narrow";
+import { CATEGORY_SHOP_FIELDS } from "@shared/shop/catalog-shop";
+import { toPublicHandle } from "@shared/shop/shop-handle";
 
 import { FILTER_PAGE_MODULE } from "../index";
 import type { FilterPageDTO } from "./dto";
@@ -12,7 +14,7 @@ const toFilterPageDTO = (row: CRUDRow): FilterPageDTO => {
     id: row.id,
     category_id: text(row.category_id),
     category: category
-      ? { name: text(category.name), handle: text(category.handle) }
+      ? { name: text(category.name), handle: toPublicHandle(text(category.handle)) }
       : null,
     title: text(row.title),
     handle: text(row.handle),
@@ -26,14 +28,16 @@ const toFilterPageDTO = (row: CRUDRow): FilterPageDTO => {
 };
 
 /**
- * CRUD посадочных для админки — /admin/filter-pages. Handle — slug из названия, уникален внутри категории;
- * события `filter_page.*` → редиректы. Категория — через read-only связь `src/links/filter-page-product-category.ts`.
+ * CRUD посадочных для админки — /admin/filter-pages, в текущем магазине. Handle — slug из названия, уникален внутри
+ * категории; категория — только из дерева магазина (400); события `filter_page.*` → редиректы магазина. Категория —
+ * через read-only связь `src/links/filter-page-product-category.ts`.
  */
 export const filterPageCRUD = defineCRUD<FilterPageDTO>({
   entity: "filter_page",
   module: FILTER_PAGE_MODULE,
   model: "FilterPage",
   label: "посадочная",
+  shopScoped: true,
   response: { one: "filter_page", many: "filter_pages" },
   fields: [
     "id",
@@ -49,7 +53,10 @@ export const filterPageCRUD = defineCRUD<FilterPageDTO>({
   ],
   search: ["title", "handle"],
   filters: ["category_id"],
-  handle: { from: "title", scope: ["category_id"] },
+  handle: { from: "title", scope: ["shop_id", "category_id"] },
+  shopReferences: [
+    { field: "category_id", entity: "product_category", shop_field: CATEGORY_SHOP_FIELDS[0], label: "Категория" },
+  ],
   schemas: { create: CreateFilterPageSchema, update: UpdateFilterPageSchema },
   toDTO: toFilterPageDTO,
 });

@@ -1,7 +1,7 @@
 # Витрина Next.js: pull образа → обновление без простоя.
 #   make deploy-frontend TAG=sha-abc1234
 - name: Frontend
-  hosts: shop
+  hosts: storefronts
   become: true
   roles:
     - role: frontend

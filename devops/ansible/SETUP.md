@@ -8,15 +8,23 @@
 `devops/ansible/inventories/production/hosts.yml`
 
 ```yaml
-ansible_host: 203.0.113.10      # ← IP вашего сервера
+backend:
+  hosts:
+    snowaa-1:
+      ansible_host: 203.0.113.10      # ← IP вашего сервера
 ```
 
-## 2. Домен, почта, ключи, реестр
+Тот же хост стоит и в группе `storefronts` (фронты магазинов). Фронты на отдельном сервере — второй хост в
+`storefronts`, роли не меняются.
+
+## 2. Домены, почта, ключи, реестр
 
 `devops/ansible/inventories/production/group_vars/all/main.yml`, блок «Обязательно заполнить»:
 
 ```yaml
-domain: example.ru                         # ← ваш домен
+network_domain: snowaa.ru                  # ← домен сети: api., traefik., rabbitmq.
+frontend_domain: olisa.ru                  # ← домен витрины первого магазина
+storefront_slug: olisa                     #   slug магазина в админке (контейнер olisa-frontend)
 acme_email: admin@example.ru               # ← почта для Let's Encrypt
 deploy_authorized_keys:                    # ← публичные SSH-ключи
   - ssh-ed25519 AAAA... you@laptop         #   ваш (cat ~/.ssh/id_ed25519.pub)
@@ -68,11 +76,11 @@ ssh-keyscan <IP сервера>                                      # выво�
 
 | Запись | Для чего |
 |---|---|
-| `example.ru` | витрина |
-| `www` | редирект на `example.ru` |
-| `api` | Medusa API и админка (`/app`) |
-| `traefik` | дашборд Traefik |
-| `rabbitmq` | UI RabbitMQ |
+| `olisa.ru` | витрина |
+| `www.olisa.ru` | редирект на `olisa.ru` |
+| `api.snowaa.ru` | Medusa API и админка (`/app`) — одна на сеть |
+| `traefik.snowaa.ru` | дашборд Traefik |
+| `rabbitmq.snowaa.ru` | UI RabbitMQ |
 
 ## Запуск
 
@@ -82,4 +90,7 @@ make infra-bootstrap   # чистый сервер, вход от root
 make infra-traefik     # HTTPS
 make infra-data        # postgres, redis, rabbitmq
 git push origin main   # CI соберёт образы и задеплоит backend и frontend
+make backend-user EMAIL=admin@snowaa.ru PASSWORD='…'   # админ Medusa — без захода на сервер
 ```
+
+Дальше — `make prod-status`, логи, бэкапы и восстановление: [README.md](README.md), «Повседневное».

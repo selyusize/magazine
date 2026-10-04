@@ -1,4 +1,5 @@
 import { SLUG_MAX_LENGTH, toSlug } from "@shared/service/slug/slug";
+import { toStoredHandle } from "@shared/shop/shop-handle";
 
 import type { CMLOffer, CMLPriceType } from "./commerceml/types";
 import type { ExchangeSettings } from "./exchange-settings";
@@ -27,9 +28,11 @@ export type OffersImportState = {
   products: Record<string, { variants: ExistingVariant[] }>;
   /** Несвязанный товар поставщика → чужая карточка с тем же штрихкодом или артикулом + брендом. */
   duplicates: Record<string, string>;
-  /** Занятые handle, начинающиеся так же, как slug новых товаров. */
+  /** Занятые в магазине handle витрины (без префикса), начинающиеся так же, как slug новых товаров. */
   taken_handles: string[];
   currency_code: string;
+  /** Магазин поставщика: handle новой карточки — `{магазин}ː{slug}`. */
+  shop_slug: string;
   sales_channel_id: string | null;
   shipping_profile_id: string | null;
 };
@@ -86,7 +89,8 @@ type Settings = Pick<ExchangeSettings, "purchase_price_type" | "retail_price_typ
  * - уже есть карточка — предложение к варианту (по прежней связи или опциям); владелец обновляет розничную цену,
  *   новый вариант у карточки владельца — в `deferred`;
  * - карточки нет, но есть дубль у другого поставщика (штрихкод, артикул + бренд) — предложения к его вариантам;
- * - иначе — новая карточка-черновик с опциями и вариантами (handle — свободный slug названия).
+ * - иначе — новая карточка-черновик с опциями и вариантами (handle — свободный в магазине slug названия с
+ *   префиксом магазина).
  */
 export function planOffersImport(input: {
   offers: CMLOffer[];
@@ -136,7 +140,7 @@ export function planOffersImport(input: {
         external_id: externalId,
         product: {
           title: staged.data.title,
-          handle,
+          handle: toStoredHandle({ shop: state.shop_slug, handle }),
           status: "draft",
           options: liveShape.options,
           variants: live.map((offer) => {

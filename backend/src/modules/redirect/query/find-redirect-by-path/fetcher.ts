@@ -15,7 +15,7 @@ export const toRedirectRuleDTO = (
   code: redirect.code,
 });
 
-/** Правило для пути или `null` — GET /store/redirects/resolve. */
+/** Правило магазина для пути или `null` — GET /store/redirects/resolve. */
 @Injectable()
 export class FindRedirectByPathFetcher extends AbstractFetcher<
   FindRedirectByPathQuery,
@@ -25,7 +25,7 @@ export class FindRedirectByPathFetcher extends AbstractFetcher<
     const { data } = await this.graph({
       entity: "redirect",
       fields: REDIRECT_RULE_FIELDS,
-      filters: { from_path: normalizePath(query.path) },
+      filters: { shop_id: query.shop_id, from_path: normalizePath(query.path) },
     });
     return data[0] ? toRedirectRuleDTO(data[0]) : null;
   }

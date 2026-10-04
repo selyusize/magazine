@@ -5,7 +5,9 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { initialShopConfig } from "../../src/container/common/shop";
 import initialDataSeed from "../../src/migration-scripts/initial-data-seed";
 
-import { adminHeaders, testCategoryRoot } from "./helpers/auth";
+import { SHOP_ROOT_CATEGORY_DATA } from "../../src/shared/shop/catalog-shop";
+
+import { adminHeaders } from "./helpers/auth";
 
 jest.setTimeout(120 * 1000);
 
@@ -99,7 +101,7 @@ medusaIntegrationTestRunner({
       );
       expect(root).toEqual(
         expect.objectContaining({
-          handle: "snow--catalog",
+          handle: "snowːcatalog",
           parent_category_id: null,
         }),
       );
@@ -213,16 +215,12 @@ medusaIntegrationTestRunner({
     });
 
     it("сбой на шаге корневой категории откатывает канал, ключ и магазин", async () => {
-      // Handle корня уже занят — workflow падает после создания канала и ключа
+      // Handle корня уже занят — workflow падает после создания канала и ключа. Занимает его ничья категория (как
+      // корень до связи с магазином): у категории чужого магазина синхронизация адреса сменила бы префикс
       await createProductCategoriesWorkflow(getContainer()).run({
         input: {
-          product_categories: [
-            {
-              name: "Чужая",
-              handle: "snow--catalog",
-              parent_category_id: await testCategoryRoot(getContainer()),
-            },
-          ],
+          product_categories: [{ name: "Чужая", handle: "snowːcatalog" }],
+          additional_data: SHOP_ROOT_CATEGORY_DATA,
         },
       });
       const channelsBefore = await graph("sales_channel", ["id"]);

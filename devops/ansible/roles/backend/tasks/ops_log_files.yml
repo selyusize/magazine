@@ -1,0 +1,61 @@
+# Файловые логи backend (Logger.toFile: импорт поставщиков, обмен с 1С, фиды) из volume — к себе:
+# make backend-log-files [NAME='import-*'] → devops/logs/files-<время>/
+- name: Время выгрузки
+  ansible.builtin.set_fact:
+    backend_log_files_stamp: "{{ lookup('ansible.builtin.pipe', 'date +%Y%m%d-%H%M%S') }}"
+    backend_log_files_remote: "{{ backup_dir }}/pull"
+
+- name: Каталог для архива на сервере
+  ansible.builtin.file:
+    path: "{{ backend_log_files_remote }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Архив файловых логов
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - -v
+      - "{{ project_name }}-backend-logs:/logs:ro"
+      - -v
+      - "{{ backend_log_files_remote }}:/out"
+      - alpine
+      - sh
+      - -c
+      - cd /logs && find . -type f -name {{ backend_log_files_name | quote }} | tar czf /out/logs.tar.gz -T -
+  changed_when: false
+
+- name: Скачать архив
+  ansible.builtin.fetch:
+    src: "{{ backend_log_files_remote }}/logs.tar.gz"
+    dest: "{{ playbook_dir }}/../../logs/files-{{ backend_log_files_stamp }}.tar.gz"
+    flat: true
+
+- name: Удалить архив на сервере
+  ansible.builtin.file:
+    path: "{{ backend_log_files_remote }}/logs.tar.gz"
+    state: absent
+
+- name: Каталог для распаковки
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../logs/files-{{ backend_log_files_stamp }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+- name: Распаковать локально
+  ansible.builtin.unarchive:
+    src: "{{ playbook_dir }}/../../logs/files-{{ backend_log_files_stamp }}.tar.gz"
+    dest: "{{ playbook_dir }}/../../logs/files-{{ backend_log_files_stamp }}"
+    remote_src: true
+  delegate_to: localhost
+  become: false
+
+- name: Где файлы
+  ansible.builtin.debug:
+    msg: "Логи: {{ (playbook_dir ~ '/../../logs/files-' ~ backend_log_files_stamp) | realpath }}"

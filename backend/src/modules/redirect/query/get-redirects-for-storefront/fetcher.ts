@@ -8,18 +8,19 @@ import {
 } from "../find-redirect-by-path/fetcher";
 import type { GetRedirectsForStorefrontQuery } from "./query";
 
-/** Все правила — GET /store/redirects: витрина держит таблицу у себя и редиректит без запроса на каждый путь. */
+/** Все правила магазина — GET /store/redirects: витрина держит таблицу у себя и редиректит без запроса на каждый путь. */
 @Injectable()
 export class GetRedirectsForStorefrontFetcher extends AbstractFetcher<
   GetRedirectsForStorefrontQuery,
   RedirectRuleDTO[]
 > {
   async fetch(
-    _query: GetRedirectsForStorefrontQuery,
+    query: GetRedirectsForStorefrontQuery,
   ): Promise<RedirectRuleDTO[]> {
     const { data } = await this.graph({
       entity: "redirect",
       fields: REDIRECT_RULE_FIELDS,
+      filters: { shop_id: query.shop_id },
       pagination: { order: { from_path: "ASC" } },
     });
     return data.map(toRedirectRuleDTO);

@@ -37,7 +37,7 @@
 | Что такое магазин | Модуль `shop` (slug, название, домен, URL витрины, настройки) + связь 1:1 с **sales channel** Medusa. У магазина свой publishable key |
 | Как бэкенд узнаёт магазин | Store API: по publishable key (ключ → один sales channel → магазин), `req.shop`. Admin API: заголовок `x-shop-id` от переключателя магазина в админке |
 | Товары | **Свои у каждого магазина**: товар состоит ровно в одном sales channel. Поставщик принадлежит одному магазину, поэтому импорт создаёт товары в его магазине; склейка дублей по штрихкоду идёт только внутри магазина |
-| Handle сущностей Medusa (товар, категория, коллекция) | В Medusa handle уникален глобально, поэтому хранится с префиксом магазина `olisa--utyug-philips`. Наружу (store API, пути, sitemap, фиды) отдаётся без префикса. Slug уникален внутри магазина |
+| Handle сущностей Medusa (товар, категория, коллекция) | В Medusa handle уникален глобально, поэтому хранится с префиксом магазина `olisaːutyug-philips` (разделитель — U+02D0: `--` модуль товаров Medusa отклоняет, шаг 5). Наружу (store API, пути, sitemap, фиды) отдаётся без префикса. Slug уникален внутри магазина |
 | Свои сущности (бренд, характеристика, статья, текстовый блок, посадочная, редирект, SEO, фид) | Поле `shop_id`, уникальность handle/path — по паре `(shop_id, …)`, индексы начинаются с `shop_id` |
 | Категории | Своё дерево у каждого магазина: связь `product_category ↔ shop`. Основная категория, бренд и характеристики товара — только из его магазина |
 | Покупатели | Общие (как в Medusa). Один логин, профиль и адреса на все магазины. «Мои заказы» показывают заказы всех магазинов с пометкой, из какого магазина заказ |
@@ -377,7 +377,7 @@ CORS пускает домен нового магазина без рестар
 Цель: два магазина могут иметь одинаковые адреса, редиректы не пересекаются.
 
 1. Сервис slug принимает область «магазин». Для сущностей Medusa (товар, категория, коллекция) handle хранится как
-   `<shop.slug>--<slug>`, наружу отдаётся без префикса. Хелперы `toPublicHandle` и `toStoredHandle` в одном месте,
+   `<shop.slug>ː<slug>`, наружу отдаётся без префикса. Хелперы `toPublicHandle` и `toStoredHandle` в одном месте,
    импорт и CRUD ходят только через них.
 2. `article.shop_id`, `filter_page.shop_id`; уникальность handle — `(shop_id, handle)`.
 3. `redirect.shop_id`, `entity_path.shop_id`; `from_path` уникален в паре `(shop_id, from_path)`. Подписчики смены
@@ -388,6 +388,42 @@ CORS пускает домен нового магазина без рестар
 Тесты: unit — `toPublicHandle`/`toStoredHandle`; HTTP — одинаковый handle в двух магазинах, 301 только в своём.
 
 Готово, когда: в двух магазинах есть товар `utyug-philips`, переименование в одном даёт 301 только в нём.
+
+> ✅ 2026-10-04 — зелёные `pnpm lint`, `tsc` (бэкенд и админка), `pnpm test:unit` (270),
+> `pnpm test:integration:http` (75), `pnpm test:integration:modules` (27); `make dev-reset` — сид и 50 демо-товаров;
+> фронт — `lint`, `lint:fsd`, `typecheck`, `test` (226) против Medusa с новыми handle.
+>
+> Паттерны шага: (1) **handle магазина — один модуль** `src/shared/shop/shop-handle.ts`: `toStoredHandle`,
+> `splitStoredHandle`, `toPublicHandle`, `toShopHandle`, `toPublicHandles`. Разделитель — `ː` (U+02D0), а не `--`:
+> модуль товаров Medusa проверяет handle (`isValidHandle`) и двойной дефис отклоняет (категории пропускали, поэтому
+> шаг 1 этого не заметил). (2) **Граница Store API** — handle наружу без префикса для всех роутов, включая роуты
+> Medusa и корзину (`product_handle`): `PublishStoreHandlesMiddleware` оборачивает `res.json`; фильтры `?handle=` —
+> реестр `storeHandleParams` (строка на роут, `ResolveStoreHandleParamsMiddleware` до валидации Medusa). (3) **Магазин
+> сущности для адресов — описанием**: `URL_ENTITIES[type].shopOf` (товар — канал, категория — связь, свои — `shop_id`,
+> коллекция — префикс handle), шаг дочитывает id/slug (`redirect/step/find-entity-shop`). `sync-entity-url` приводит
+> handle Medusa к `{магазин}ː{slug}` (уникальность — в магазине), пути и 301/410 пишет в магазин сущности; после
+> удаления магазин берётся из `entity_path`. (4) **Ссылки на сущности магазина в CRUD-фабрике** — опция
+> `shopReferences` (категория посадочной из чужого дерева — 400). (5) **Реестр `shopOwnedRoutes` с `methods`** —
+> для `:id` рядом со статическим роутом (`/admin/redirects/import`).
+>
+> Сделано: `article.shop_id` (уникальность `(shop_id, handle)`), `filter_page.shop_id` (`(shop_id, category_id,
+> handle)`), `redirect.shop_id` (`(shop_id, from_path)`, индекс `(shop_id, to_path)`), `entity_path.shop_id` —
+> миграции пересобраны на месте. CRUD статей и посадочных — `shopScoped`, по id — в реестре; редиректы: список,
+> ручное правило и CSV — в текущем магазине, `DELETE /admin/redirects/:id` — только своего, цепочки схлопываются
+> внутри магазина; `GET /store/redirects` и `/resolve` — только `req.shop` (OAS и Orval перегенерированы, фронт olisa
+> без изменений кода). Импорт: handle новой карточки — `{магазин поставщика}ː{slug}`, свободный в магазине. Сид,
+> `create-shop` — через `toStoredHandle`. DTO админки (категории каталога и посадочных) — handle витрины. Админка:
+> переключатель магазина на странице «Редиректы». Тесты: `shop-handles.spec.ts` (одинаковый товар и категория в двух
+> магазинах, Store API без префикса, 301 только в своём), строка «контент и редиректы» в `shop-isolation.spec.ts`,
+> категория посадочной из чужого магазина — 400, unit — `shop-handle`, `path` (`shopOf`, пути без префикса), сервис
+> редиректов по магазинам; хелпер `testShopContext`. Новых зависимостей нет.
+>
+> Ограничения: handle из админки Medusa сначала пишется без префикса, префикс ставит подписчик (миллисекунды) — в
+> это окно тот же handle во втором магазине упрётся в уникальность Medusa; импорт и сид пишут префикс сразу.
+>
+> Перенесено: коллекции не связаны с магазином — их магазин виден только по префиксу handle, коллекция из админки
+> без префикса адресов и редиректов не получает; связь `shop ↔ product_collection` и фильтр `/store/collections` —
+> шаг 6.
 
 ### Шаг 6. Сквозная изоляция и поиск
 
@@ -401,6 +437,47 @@ CORS пускает домен нового магазина без рестар
 3. `backend/docs/multishop.md`: как определяется магазин, правила `shop_id`, handle-префикс, что сетевое.
 
 Готово, когда: тест изоляции зелёный по всем существующим сущностям.
+
+> ✅ 2026-10-04 — зелёные `pnpm lint`, `tsc` (бэкенд и админка), `pnpm test:unit` (271),
+> `pnpm test:integration:http` (77), `pnpm test:integration:modules` (27); фронт — `lint`, `lint:fsd`, `typecheck`,
+> `test` (226). Контракт Store API не менялся (OAS — без изменений шага), миграций нет.
+>
+> Паттерны шага: (1) **Сущности Medusa без канала продаж в Store API** — реестр `storeShopScopedRoutes`
+> (`src/container/common/shop.ts`, строка на роут): список фильтруется по префиксу handle магазина ключа
+> (`withShopHandleFilter` → `$and` в `req.filterableFields`; middleware с методом встаёт после валидации query
+> Medusa — порядок `RoutesSorter`: без метода — «global», первыми), карточка `/:id` чужой — 404
+> (`ScopeStoreEntitiesMiddleware`, фетчер `find-shop-entity-by-id`). Нужен свой 404: роут Medusa
+> `/store/product-categories/:id` на пустой выборке отвечает 200 без категории. (2) **Владение по id в Store API** —
+> реестр `storeShopOwnedRoutes` тем же `CheckShopOwnershipMiddleware` с магазином ключа (`for(rule, requireShop)`):
+> корзина другого магазина — 404. (3) **Роут Medusa, обходящий инварианты, закрывается middleware**:
+> `POST /admin/sales-channels/:id/products` (workflow без хуков товара) — 400, канал меняется в карточке товара.
+>
+> Сделано: изоляция витрины — товары и `/store/products/:id` (Medusa, канал ключа), `POST /store/search` (Medusa,
+> `sales_channel_ids` ключа), категории и коллекции (список и `/:id`), корзины; хвост шага 4 про второй канал через
+> `/admin/sales-channels/:id/products` закрыт. `shop-isolation.spec.ts`: строки «витрина» (товары, поиск, категории,
+> коллекции, корзины) и «канал продаж»; вместе со строками шагов 3–5 покрыты товары, категории, бренды,
+> характеристики, статьи, посадочные, редиректы, поиск, поставщики и импорт. Тестовые хелперы: `buildProductIndex`
+> (миграция и пересборка индекса поиска — в тестовой БД его не строит старт сервера). Документ
+> `backend/docs/multishop.md`: как определяется магазин, таблица «сущность → где магазин → как изолирована», правила
+> для новой сущности, handle-префикс, что сетевое, ограничения. Новых зависимостей нет.
+>
+> **Коллекции магазина** (дополнение шага): связь `shop ↔ product_collection` (`src/links/shop-product-collection.ts`),
+> как у категорий. Хук `collectionsCreated` берёт магазин из `additional_data.shop_id` или префикса handle
+> (`collectionShopRefs`), команда `assign-shop-to-collections` (откат — `remove-shop-from-collections`) ставит связь и
+> шлёт `product-collection.updated` — синхронизация адреса добавляет префикс handle и запоминает путь в магазине
+> коллекции (`URL_ENTITIES.product_collection.shopOf` — по связи). Коллекция из дашборда Medusa создаётся без
+> магазина: блок «Магазин» в её карточке (виджет `product_collection.details.before`, `GET|POST
+> /admin/collections/:id/shop`) — выбор один раз, другой магазин — 400. Правила — таблица
+> `collection-shop-rules` (магазин не меняется, товары — из него), у товара — `foreign_collection` в
+> `product-shop-rules`; `POST /admin/collections/:id/products` (workflow без хуков) — `CollectionProductsGuard`, чужой
+> товар — 400. Тесты: `collection-shop.spec.ts`, unit — правила коллекции и товара. Витрина фильтрует коллекции по
+> префиксу handle — его по связи держит синхронизация адреса.
+>
+> Решения: брендов и статей в Store API пока нет (шаги 17, 19) — их изоляция проверена в админке. Заказы, покупатели,
+> регионы, теги и типы товаров — сетевые.
+>
+> Перенесено: дашборд Medusa показывает товары, категории и коллекции всех магазинов — шаг 43 (вместе с привязкой
+> менеджера к магазину, каналом товара и магазином коллекции по умолчанию).
 
 ### Шаг 7. Инвалидация кэша по событиям (бэкенд + витрина)
 
@@ -425,6 +502,51 @@ CORS пускает домен нового магазина без рестар
 Готово, когда: переименование товара в админке olisa через секунды видно на витрине, соседний магазин не
 получает запрос.
 
+> ✅ 2026-10-04 — зелёные `pnpm lint`, `tsc` (бэкенд и админка), `pnpm test:unit` (335),
+> `pnpm test:integration:http` (87), `pnpm test:integration:modules` (27); `make dev-reset` — сид с секретом и
+> 50 демо-товаров; фронт — `lint`, `lint:fsd`, `typecheck`, `make test` (237). Store API не менялся (OAS — без
+> изменений).
+>
+> Паттерны шага: (1) **реестр инвалидации — описанием**: `src/container/common/cache.ts`, строка на сущность
+> (`on(crud("brand"), { storefront: … })`): цель `entity` (Query-поля, `shopOf`, теги, `orphan_tags` — всем магазинам,
+> если сущности уже нет), `shop` (магазин в данных события), `network` (все активные магазины); `backend` — теги
+> `cached()`. Словарь тегов — `src/shared/service/cache-invalidation/storefront-tags.ts`. (2) **Дебаунс без своих
+> очередей**: пачка на магазин — таблица `storefront_revalidation` (она же журнал), таймер — событие
+> `storefront_revalidation.queued` с `options.delay` (BullMQ / локальная шина); каждое событие сдвигает срок на окно
+> (3 с), но не дальше 30 с от первого; захват пачки и слияние тегов — под блокировкой магазина; потерянные таймеры —
+> job раз в минуту. (3) **Повторы** — тот же таймер с паузой из таблицы (10 с … 1 ч), затем `failed`. (4) **Секреты
+> магазина в БД** — `SecretBox` (AES-256-GCM, `SHOP_SECRETS_KEY`). (5) **Хосты вебхука** — `STOREFRONT_REVALIDATE_HOSTS`:
+> тесты шлют только фейковым приёмникам на `127.0.0.1`.
+>
+> Сделано: подписчик `cache-invalidation` → `invalidate-caches-by-event` (кэш бэкенда сразу, теги витрин — в очередь
+> `queue-storefront-revalidations`) → `send-storefront-revalidation` (вебхук, журнал, повтор); события товара,
+> варианта, категории, коллекции, бренда, характеристики, статьи, посадочной, магазина, реквизитов сети, региона,
+> конца импорта и новое `redirect.updated` (`{ shop_id }`, шлют все команды, меняющие таблицу редиректов). Больше 100
+> тегов сущностей в пачке — заменяются групповыми (импорт). Секрет вебхука — колонка `shop.revalidate_secret`
+> (зашифрована; не в `settings`, чтобы не попадать в DTO и форму), генерируется в `create-shop`, у olisa — из
+> `INITIAL_SHOP_REVALIDATE_SECRET`. Admin API: `GET|POST /admin/storefront-revalidations` (журнал, «обновить витрину
+> целиком»), `GET|POST /admin/shops/current/revalidate-secret` (показ, перевыпуск); страница админки «Обновление
+> витрины». Jobs: `shop-requeue-storefront-revalidations`, `shop-prune-storefront-revalidations` (журнал — 7 дней).
+> Витрина olisa: `app/api/revalidate` → `src/shared/revalidate` (секрет за постоянное время, zod, `revalidateTag(tag,
+> { expire: 0 })`), теги `cacheTags` на всех fetch, таблица редиректов `proxy.ts` — в `globalThis` и перечитывается по
+> тегу `redirects`, env `REVALIDATE_SECRET`. `make dev-secret` / `make dev-key` — секрет olisa в `backend/.env` и во
+> фронт. Ansible: `vault_shop_secrets_key`, `vault_storefront_revalidate_secret` (vault-init, assert, env бэкенда и
+> фронта). Контракт для внешних фронтов — `backend/docs/storefront.md`. Тесты: unit — реестр (таблица «событие →
+> магазин и теги»), слияние тегов, дебаунс и повторы, `SecretBox`, клиент вебхука; HTTP — `storefront-revalidation.spec.ts`
+> (фейковые витрины двух магазинов: бренд и редирект → вебхук только своему, журнал, 401 → повтор, перевыпуск
+> секрета, 400/401), строка в `shop-isolation.spec.ts`; фронт — vitest на роут ревалидации и сброс таблицы
+> редиректов. Новых зависимостей нет.
+>
+> Отличия от плана: `cached()` бэкенда сейчас только сетевые (магазин по ключу, origin витрин) — ключи с `shop_id`
+> появятся у первых кэшей магазина (шаги 16–17) через тот же реестр. Живая проверка в браузере не делалась —
+> сценарий «правка → вебхук только своему магазину» покрыт HTTP-тестом.
+>
+> Перенесено: остатки и цены вне событий варианта (`inventory-level.*`, price lists) — шаги 11–12; импорт шлёт
+> `product.updated` на каждый товар — подписчик работает на каждое событие (пачка уходит раз в 30 с), пакетная
+> обработка событий — шаг 41; удалённая сущность без магазина сбрасывает групповые теги всех магазинов; секреты
+> фронтов в vault по магазинам (`storefronts:`) — шаг 9; локальный стек в контейнерах (`--profile app`) шлёт вебхук
+> на `localhost:3000` внутри контейнера бэкенда — до шага 9 там работает только TTL.
+
 ### Шаг 8. Ansible: бэкенд сети Snowaa и эксплуатация без SSH
 
 Цель: бэкенд сети разворачивается и обслуживается только командами с локальной машины.
@@ -445,6 +567,37 @@ CORS пускает домен нового магазина без рестар
 
 Готово, когда: свежий сервер поднимается одной командой; миграции, логи, бэкап и восстановление делаются без
 `ssh`.
+
+> ✅ 2026-10-04 (частично: проверки без сервера) — `ansible-lint` (профиль production, 0 замечаний), `--syntax-check`
+> всех плейбуков, рендер шаблонов backend/frontend локальным плейбуком и `docker compose config` по ним, проверки
+> параметров ops-плейбуков (assert) на локальном подключении. **Не выполнено:** `make infra-site` с нуля на тестовом
+> сервере и `make infra-check` против живого inventory — сервера нет; первый прогон — на стенде перед шагом 9.
+>
+> Паттерны шага: (1) **хосты — группы, а не роли**: `backend` (Medusa, БД, Redis, RabbitMQ; ops-плейбуки —
+> `backend[0]`) и `storefronts`; `server.yml`, `traefik.yml`, `stack.yml` — на обе группы, стек хоста собирается из его
+> групп; фронт на чужом хосте сам переходит на `https://api.<домен сети>` (`frontend_api_internal_url`).
+> (2) **Эксплуатация — tasks роли + плейбук-диспетчер + цель make**: `roles/backend/tasks/ops_*.yml`,
+> `roles/postgres/tasks/ops_*.yml`, `playbooks/backend-ops.yml` / `db-ops.yml` выбирают файл по `BACKEND_OP` / `DB_OP`;
+> параметры — через target-specific `export` в Makefile и `lookup('env')` (кавычки в `CMD` и `PASSWORD` не ломают
+> строку, пароль — `no_log`). (3) **Разовые команды** — контейнер `backend-tools` (профиль `tools`, образ и env worker,
+> volumes загрузок/обмена/логов). (4) **CI = make**: деплой в `deploy.yml` — `make deploy-backend|deploy-frontend
+> TAG=… IMAGE_PREFIX=…`, линт — `make infra-lint`, дрейф — `infra-check.yml` (раз в неделю, `make infra-check`).
+>
+> Сделано: `project_name: snowaa` (`/opt/snowaa`, `snowaa-backend`, `snowaa-backend-worker`, `snowaa-postgres`,
+> `snowaa-redis`, `snowaa-traefik`), фронт — `olisa-frontend` (`storefront_slug`, `frontend_container`), домен сети
+> `network_domain` (`api.`, `traefik.`, `rabbitmq.`) отдельно от `frontend_domain`; publishable key для сборки фронта —
+> по названию «Витрина <slug>», а не первый в БД. Цели: `prod-status`, `backend-migrate`, `backend-exec CMD=…`,
+> `backend-seed` (демо, с подтверждением), `backend-user EMAIL= PASSWORD=`, `backend-logs SERVICE=server|worker|static|traefik
+> SINCE= LINES=` (целиком — `devops/logs/`), `backend-log-files NAME=` (volume логов → `devops/logs/files-*`),
+> `db-backup [DOWNLOAD=1]`, `db-backups`, `db-restore FILE=` (имя на сервере или локальный дамп; бэкап перед
+> восстановлением, стоп backend/worker, пересоздание БД, `pg_restore`, сброс Redis, миграции, ожидание healthy),
+> `infra-check`; `infra-lint` — ещё и syntax-check. Секреты в vault — с шага 7 (`vault_shop_secrets_key`,
+> `vault_storefront_revalidate_secret`), SMTP и перевозчики уже были, ЮKassa по магазину — шаг 31. README и SETUP
+> переписаны под сеть (раздел «Повседневное» без `ssh`, переход со схемы `olisa-*`). Новых зависимостей нет.
+>
+> Перенесено: несколько фронтов (`storefronts:` списком, роль `storefront`, логи фронта по магазину) — шаг 9; копия
+> бэкапов за пределы сервера (S3/restic) — не в плане, добавить к шагу 44 (мониторинг); traefik на втором хосте
+> требует своего `traefik_dashboard_domain` в `host_vars`.
 
 ### Шаг 9. Ansible: фронты магазинов
 

@@ -1,26 +1,33 @@
-# Управление уже развёрнутым стеком на сервере: make prod-up | prod-down | prod-restart [SERVICES=backend,frontend]
-#   up      — поднять (в порядке зависимостей); backend и frontend — через compose-rollout, с именами olisa-*
+# Управление уже развёрнутым стеком: make prod-up | prod-down | prod-restart | prod-status [SERVICES=backend,frontend]
+#   up      — поднять (в порядке зависимостей); backend и frontend — через compose-rollout, с именами snowaa-backend,
+#             olisa-frontend
 #   down    — остановить и удалить контейнеры (в обратном порядке); данные в volume сохраняются
 #   restart — перезапустить контейнеры (короткий простой; для обновления без простоя — make deploy)
-# Сервисы: traefik, postgres, redis, rabbitmq, backend, frontend.
+#   status  — только показать контейнеры и их здоровье
+# Сервисы: traefik, postgres, redis, rabbitmq, backend (хосты группы backend), frontend (группы storefronts).
 - name: Стек на сервере
-  hosts: shop
+  hosts: backend:storefronts
   become: true
   gather_facts: false
   vars:
-    stack_all: "{{ ['traefik', 'postgres', 'redis'] + (['rabbitmq'] if rabbitmq_enabled | bool else []) + ['backend', 'frontend'] }}"
+    stack_known: [traefik, postgres, redis, rabbitmq, backend, frontend]
+    stack_all: >-
+      {{ ['traefik']
+      + ((['postgres', 'redis'] + (['rabbitmq'] if rabbitmq_enabled | bool else []) + ['backend'])
+         if inventory_hostname in groups['backend'] else [])
+      + (['frontend'] if inventory_hostname in groups['storefronts'] else []) }}
     stack_selected: "{{ (services | default('')).split(',') | map('trim') | select | list }}"
     stack_order: "{{ stack_all | select('in', stack_selected or stack_all) | list }}"
     stack_rollout:
-      backend: "{{ project_name }}-backend"
-      frontend: "{{ project_name }}-frontend"
+      backend: "{{ backend_host }}"
+      frontend: "{{ frontend_container }}"
   tasks:
     - name: Проверить параметры
       ansible.builtin.assert:
         that:
-          - stack_action | default('') in ['up', 'down', 'restart']
-          - stack_selected | difference(stack_all) | length == 0
-        fail_msg: "stack_action: up | down | restart; services — из {{ stack_all | join(', ') }}"
+          - stack_action | default('') in ['up', 'down', 'restart', 'status']
+          - stack_selected | difference(stack_known) | length == 0
+        fail_msg: "stack_action: up | down | restart | status; services — из {{ stack_known | join(', ') }}"
         quiet: true
 
     - name: Поднять сервисы
@@ -60,9 +67,12 @@
 
     - name: Состояние контейнеров
       ansible.builtin.command:
-        cmd: docker ps --filter name={{ project_name }}- --format '{{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}'
+        cmd: >-
+          docker ps -a --filter name=^{{ project_name }}- {% if inventory_hostname in groups['storefronts'] %}--filter name=-frontend{% endif %}
+          --format '{{ '{{' }}.Names{{ '}}' }}  {{ '{{' }}.Status{{ '}}' }}  {{ '{{' }}.Image{{ '}}' }}'
       register: stack_ps
       changed_when: false
+      check_mode: false
 
     - name: Показать состояние
       ansible.builtin.debug:

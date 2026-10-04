@@ -4,6 +4,7 @@ import { AbstractFetcher } from "@shared/query/abstract-fetcher";
 import { Injectable } from "@shared/container";
 
 import { recordOf, recordOrNull, records, text } from "@shared/query/narrow";
+import { toPublicHandle } from "@shared/shop/shop-handle";
 
 import type { ProductCatalogDTO } from "./dto";
 import type { GetCatalogByProductIdQuery } from "./query";
@@ -24,9 +25,10 @@ export const PRODUCT_CATALOG_FIELDS = [
   "categories.handle",
 ];
 
+/** Handle — витрины: у категории в БД он с префиксом магазина, у бренда — свой. */
 const toNamed = (value: unknown): Named | null => {
   const row = recordOrNull(value);
-  return row ? { id: text(row.id), name: text(row.name), handle: text(row.handle) } : null;
+  return row ? { id: text(row.id), name: text(row.name), handle: toPublicHandle(text(row.handle)) } : null;
 };
 
 /** Строка товара с полями `PRODUCT_CATALOG_FIELDS` → DTO. */

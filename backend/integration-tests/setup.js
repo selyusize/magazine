@@ -14,6 +14,11 @@ process.env.CDEK_CLIENT_SECRET = "test"
 process.env.YANDEX_DELIVERY_BASE_URL = "https://yandex-delivery.invalid"
 process.env.YANDEX_DELIVERY_TOKEN = "test"
 
+// Вебхуки ревалидации витрин — только фейковым приёмникам тестов на loopback (в сеть тесты не ходят), окно
+// дебаунса короткое, чтобы не ждать секундами
+process.env.STOREFRONT_REVALIDATE_HOSTS = "127.0.0.1"
+process.env.STOREFRONT_REVALIDATE_WINDOW_MS = "300"
+
 // Пакеты обмена и логи импорта тестов — во временной папке, не в backend/exchange и backend/logs
 const os = require("node:os");
 const path = require("node:path");

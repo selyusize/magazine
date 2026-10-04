@@ -3,6 +3,9 @@ import {
   transform,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
+import { emitEventStep } from "@medusajs/medusa/core-flows";
+
+import { REDIRECT_UPDATED, toRedirectEventData } from "../../service/redirect-events";
 
 import { saveRedirectsStep } from "../../step/save-redirects";
 import type { SaveRedirectCommand } from "./command";
@@ -14,6 +17,10 @@ export const saveRedirectWorkflow = createWorkflow(
     const redirects = saveRedirectsStep(
       transform(command, (command) => [command]),
     );
+    emitEventStep({
+      eventName: REDIRECT_UPDATED,
+      data: transform(command, (command) => toRedirectEventData([command.shop_id])),
+    });
 
     return new WorkflowResponse(
       transform(redirects, ([redirect]): SavedRedirectDTO => ({

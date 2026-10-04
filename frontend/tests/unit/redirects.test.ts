@@ -16,9 +16,10 @@ const RULES: GetRedirects200 = {
   ],
 };
 
-/** Модуль заново на каждый тест: таблица кэшируется в памяти модуля. */
+/** Таблица заново на каждый тест: она живёт в `globalThis` (общая для proxy и роута ревалидации). */
 async function loadResolver() {
   vi.resetModules();
+  globalThis.__storefrontRedirectRules = undefined;
   return (await import("@shared/redirects/resolve")).resolveRedirect;
 }
 
@@ -112,6 +113,19 @@ describe("resolveRedirect: редиректы витрины в proxy", () => {
       const fresh = redirectOf(await resolveRedirect(request("/sale")));
       expect(fresh?.headers.get("location")).toBe("http://localhost:3000/catalog/new-sale");
     });
+  });
+
+  it("вебхук (тег redirects) — таблица перечитывается сразу, без ожидания TTL", async () => {
+    const resolveRedirect = await loadResolver();
+    const { invalidateRedirectRules } = await import("@shared/redirects/table");
+    await resolveRedirect(request("/sale"));
+
+    getRedirects.mockResolvedValue({ redirects: [{ fromPath: "/sale", toPath: "/catalog/new-sale", code: 301 }] });
+    await invalidateRedirectRules();
+
+    const fresh = redirectOf(await resolveRedirect(request("/sale")));
+    expect(fresh?.headers.get("location")).toBe("http://localhost:3000/catalog/new-sale");
+    expect(getRedirects).toHaveBeenCalledTimes(2);
   });
 
   it("Medusa недоступна — сайт работает без редиректов, повтор не на каждом запросе", async () => {

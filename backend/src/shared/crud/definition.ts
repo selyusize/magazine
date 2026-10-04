@@ -19,6 +19,18 @@ export function toCRUDRow(value: unknown): CRUDRow {
   throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "CRUD: сервис модуля вернул не строку сущности");
 }
 
+/** Поле тела со ссылкой на сущность магазина. */
+export type CRUDShopReference = {
+  /** Поле тела с id (`category_id`). */
+  field: string;
+  /** Сущность в Query (`product_category`). */
+  entity: string;
+  /** Где у неё магазин — своё поле или путь через связь (`shop.id`), как в `shopOwnedRoutes`. */
+  shop_field: string;
+  /** Для сообщения: «Категория pcat_1 — из другого магазина». */
+  label: string;
+};
+
 /** Сущность для CRUD-фабрики: одно описание — команды, запросы, Actions и middleware админки. */
 export type CRUDDefinition<TDTO extends DTO & { id: string }> = {
   /** Имя сущности в Query и в событиях (`brand` → `brand.created`); из него же id workflow и шагов. */
@@ -45,6 +57,11 @@ export type CRUDDefinition<TDTO extends DTO & { id: string }> = {
    * создание `shop_id` не пишет — магазин проверяет use‑case создания.
    */
   shopScoped?: boolean | { through: string };
+  /**
+   * Ссылки тела на сущности магазина (категория посадочной): при создании и изменении сущность по ссылке должна быть
+   * из магазина записи (`shop_id`), иначе 400. Только для `shopScoped: true`.
+   */
+  shopReferences?: CRUDShopReference[];
   /** Поля для точного фильтра списка (`?category_id=`). */
   filters?: string[];
   /** Сортировка списка, по умолчанию — свежие сверху. */

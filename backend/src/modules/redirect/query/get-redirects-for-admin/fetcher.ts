@@ -24,7 +24,7 @@ const toAdminRedirectDTO = (redirect: AdminRedirectDTO): AdminRedirectDTO => ({
   updated_at: new Date(redirect.updated_at),
 });
 
-/** Страница правил для админки, свежие сверху — GET /admin/redirects. */
+/** Страница правил магазина для админки, свежие сверху — GET /admin/redirects. */
 @Injectable()
 export class GetRedirectsForAdminFetcher extends AbstractFetcher<
   GetRedirectsForAdminQuery,
@@ -38,14 +38,17 @@ export class GetRedirectsForAdminFetcher extends AbstractFetcher<
     const { data, metadata } = await this.graph({
       entity: "redirect",
       fields: ADMIN_REDIRECT_FIELDS,
-      filters: pattern
-        ? {
-            $or: [
-              { from_path: { $ilike: pattern } },
-              { to_path: { $ilike: pattern } },
-            ],
-          }
-        : {},
+      filters: {
+        shop_id: query.shop_id,
+        ...(pattern
+          ? {
+              $or: [
+                { from_path: { $ilike: pattern } },
+                { to_path: { $ilike: pattern } },
+              ],
+            }
+          : {}),
+      },
       pagination: {
         skip: query.offset,
         take: query.limit,

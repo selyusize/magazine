@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
 import { toSlug } from "@shared/service/slug/slug";
+import { toPublicHandle, toStoredHandle } from "@shared/shop/shop-handle";
 
 import {
   isString,
@@ -61,8 +62,8 @@ export const loadExchangeOffersStateStep = createStep(
       query.graph({ entity: "shipping_profile", fields: ["id"], filters: { type: "default" } }),
     ]);
 
-    const staged = Object.fromEntries(
-      rows.flatMap((row) => {
+    const staged: Record<string, StagedProduct> = Object.fromEntries(
+      rows.flatMap((row): [string, StagedProduct][] => {
         const data = ImportedProductSchema.safeParse(row.data);
         if (!data.success) return [];
         const product: StagedProduct = {
@@ -92,9 +93,11 @@ export const loadExchangeOffersStateStep = createStep(
       duplicates,
       taken_handles: await takenHandles(
         query,
+        shop.shop_slug,
         unlinked.filter((row) => !duplicates[row.data.external_id]).map((row) => toSlug(row.data.title) || "product"),
       ),
       currency_code: currency,
+      shop_slug: shop.shop_slug,
       sales_channel_id: shop.sales_channel_id,
       shipping_profile_id: profiles[0]?.id ?? null,
     };
@@ -223,15 +226,20 @@ async function loadVariants(
   return products;
 }
 
-/** Handle товаров, начинающиеся с данных slug: из них план выберет свободные. */
-async function takenHandles(query: Query, bases: string[]): Promise<string[]> {
+/**
+ * Занятые в магазине handle витрины, начинающиеся с данных slug: из них план выберет свободные. Ищем по handle с
+ * префиксом магазина — товары других магазинов с тем же названием не мешают.
+ */
+async function takenHandles(query: Query, shopSlug: string, bases: string[]): Promise<string[]> {
   const prefixes = unique(bases);
   if (!prefixes.length) return [];
   const { data } = await query.graph({
     entity: "product",
     fields: ["handle"],
-    filters: { $or: prefixes.map((base) => ({ handle: { $like: `${base}%` } })) },
+    filters: {
+      $or: prefixes.map((base) => ({ handle: { $like: `${toStoredHandle({ shop: shopSlug, handle: base })}%` } })),
+    },
     withDeleted: true,
   });
-  return records(data).flatMap((product) => (isString(product.handle) ? [product.handle] : []));
+  return records(data).flatMap((product) => (isString(product.handle) ? [toPublicHandle(product.handle)] : []));
 }

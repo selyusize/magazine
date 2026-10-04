@@ -13,6 +13,11 @@ export type ShopOwnedRoute = {
   shop_field: string;
   /** Для сообщения: «Не найдено в текущем магазине: поставщик sup_1». */
   label: string;
+  /**
+   * Только эти методы — когда рядом с `:id` есть статический роут (`/admin/redirects/import` попал бы под
+   * `/admin/redirects/:id` как id «import»). Нет — все методы.
+   */
+  methods?: ("GET" | "POST" | "DELETE")[];
 };
 
 /**

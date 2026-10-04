@@ -1,17 +1,24 @@
 # Прод: Ansible + Traefik + CI/CD
 
-Один Docker-хост на магазин. Ansible готовит сервер и раскладывает сервисы как отдельные compose-проекты
-в `/opt/<project_name>/`, Traefik отдаёт всё по HTTPS (Let's Encrypt), GitHub Actions собирает образы и деплоит.
+Сеть магазинов Snowaa: один бэкенд Medusa на все магазины и фронт каждого магазина (`<магазин>-frontend`).
+Ansible готовит серверы и раскладывает сервисы как отдельные compose-проекты в `/opt/snowaa/`, Traefik отдаёт
+всё по HTTPS (Let's Encrypt), GitHub Actions собирает образы и деплоит. **На сервер не заходим**: деплой,
+миграции, логи, бэкапы, восстановление, разовые команды и админы — цели `make` с вашей машины (раздел
+«Повседневное»).
+
+Хосты — две группы inventory: `backend` (Medusa, БД, Redis, RabbitMQ) и `storefronts` (фронты магазинов).
+Сейчас это один сервер в обеих группах; фронты можно вынести на свои хосты без правок ролей — тогда они ходят в
+API по `https://api.<домен сети>`, а не по внутренней docker-сети.
 
 ```
                        ┌──────────── сеть proxy ────────────────────────────────┐
-интернет ─ :80/:443 ─ traefik ─┬─ frontend   example.ru, www → 301        (Next.js)
-           (HTTP→HTTPS,        ├─ backend    api.example.ru (/app, /admin — только admin_allowlist)
-            LE-сертификаты)    ├─ rabbitmq   rabbitmq.example.ru (UI, admin_allowlist)
-                               └─ дашборд    traefik.example.ru (basic auth + admin_allowlist)
+интернет ─ :80/:443 ─ traefik ─┬─ olisa-frontend   olisa.ru, www → 301          (Next.js)
+           (HTTP→HTTPS,        ├─ snowaa-backend   api.snowaa.ru (/app, /admin — только admin_allowlist)
+            LE-сертификаты)    ├─ rabbitmq         rabbitmq.snowaa.ru (UI, admin_allowlist)
+                               └─ дашборд          traefik.snowaa.ru (basic auth + admin_allowlist)
                        └───────────────────────────────────────────────────────┘
                        ┌──────────── сеть internal (без выхода в интернет) ─────┐
-backend, backend-worker ─ postgres · redis · rabbitmq (AMQP)
+snowaa-backend, snowaa-backend-worker ─ snowaa-postgres · snowaa-redis · snowaa-rabbitmq (AMQP)
                        └───────────────────────────────────────────────────────┘
 ```
 
@@ -20,8 +27,8 @@ backend, backend-worker ─ postgres · redis · rabbitmq (AMQP)
 | Traefik v3 + docker-socket-proxy | HTTPS, редиректы, заголовки безопасности, сжатие, retry | `traefik` |
 | PostgreSQL 17, Redis 8 | БД и шина событий/воркфлоу Medusa | `postgres`, `redis` |
 | RabbitMQ 4 | для своих модулей и интеграций (1С, ERP, очереди) — Medusa его не использует | `rabbitmq` |
-| Medusa: server + worker | API, админка, фоновые задачи | `backend` |
-| Next.js | витрина | `frontend` |
+| Medusa: server + worker | API, админка, фоновые задачи — одни на всю сеть | `backend` |
+| Next.js | витрина магазина (`olisa-frontend`; несколько магазинов — шаг 9 плана) | `frontend` |
 | Сервер | пакеты, swap, пользователь `deploy`, SSH только по ключу, UFW, fail2ban, автообновления безопасности, Docker | `common`, `docker` |
 
 Medusa работает только на PostgreSQL — это единственная БД стека. Адрес RabbitMQ попадает в backend как `RABBITMQ_URL`;
@@ -58,14 +65,15 @@ pipx install ansible-core        # или brew install ansible
 make infra-deps                  # коллекции community.docker / community.general / ansible.posix
 ```
 
-**1. DNS.** A-записи на IP сервера: `example.ru`, `www`, `api`, `traefik`, `rabbitmq`.
-Без них Let's Encrypt не выдаст сертификаты.
+**1. DNS.** A-записи на IP сервера: домен сети — `api`, `traefik`, `rabbitmq` (`api.snowaa.ru`…), домен витрины
+и `www` (`olisa.ru`). Без них Let's Encrypt не выдаст сертификаты.
 
 **2. Inventory.** `devops/ansible/inventories/production/`:
 
-- `hosts.yml` — `ansible_host: <IP сервера>`;
-- `group_vars/all/main.yml` — `domain`, `acme_email`, `image_prefix` (`ghcr.io/<owner>/<repo>` в нижнем регистре),
-  `deploy_authorized_keys` — ваш публичный ключ и ключ CI (см. ниже). Остальное — по желанию.
+- `hosts.yml` — `ansible_host: <IP сервера>` (хост в группах `backend` и `storefronts`);
+- `group_vars/all/main.yml` — `network_domain`, `frontend_domain`, `acme_email`, `image_prefix`
+  (`ghcr.io/<owner>/<repo>` в нижнем регистре), `deploy_authorized_keys` — ваш публичный ключ и ключ CI (см. ниже).
+  Остальное — по желанию.
 
 **3. Секреты.**
 
@@ -102,16 +110,20 @@ make deploy TAG=sha-abc1234      # backend (миграции) → frontend
 **7. Админ Medusa.**
 
 ```bash
-ssh deploy@<IP> 'cd /opt/olisa/backend && sudo docker compose run --rm backend-migrate pnpm exec medusa user -e admin@example.ru -p <пароль>'
+make backend-user EMAIL=admin@example.ru PASSWORD='<пароль>'   # пароль в лог Ansible не попадает
 ```
 
-Админка — `https://api.example.ru/app`.
+Админка — `https://api.<домен сети>/app`.
 
 ## CI/CD (GitHub Actions)
 
-- `.github/workflows/ci.yml` — на каждый PR: линт, FSD, типы, unit-тесты и сборка фронта, линт и сборка backend, ansible-lint.
+- `.github/workflows/ci.yml` — на каждый PR: линт, FSD, типы, unit-тесты и сборка фронта, линт и сборка backend,
+  `make infra-lint` (ansible-lint + syntax-check плейбуков).
 - `.github/workflows/deploy.yml` — на push в `main` (или вручную): CI → образ backend в GHCR → деплой backend
   (миграции + выкат без простоя) → образ витрины → деплой витрины. Теги образов: `sha-<commit>` и `latest`.
+  Деплой — те же цели, что вручную: `make deploy-backend` / `make deploy-frontend` с `TAG` и `IMAGE_PREFIX`.
+- `.github/workflows/infra-check.yml` — раз в неделю и вручную: `make infra-check` (`infra-site --check --diff`) —
+  показывает, чем серверы разошлись с описанием в Ansible.
 
 Витрина собирается после деплоя backend: в её бандл вшиваются `NEXT_PUBLIC_API_URL` и publishable key,
 а ключ создаётся первой миграцией. Плейбук `frontend-build-args.yml` берёт ключ из `medusa_publishable_key`
@@ -199,40 +211,51 @@ frontend_env:
 
 ## Повседневное
 
+Всё — с вашей машины, без `ssh` (плейбуки `backend-ops.yml`, `db-ops.yml`, `stack.yml`):
+
 ```bash
 make deploy-backend TAG=sha-abc1234     # деплой/откат backend на конкретный коммит
 make deploy-frontend TAG=sha-abc1234    # то же для витрины
+make prod-status                        # контейнеры, здоровье, образы на всех хостах
+make prod-restart SERVICES=backend      # перезапустить сервис (короткий простой)
+make prod-down / make prod-up           # остановить (спросит подтверждение) / поднять; данные остаются
+
+make backend-migrate                    # миграции и migration-scripts (то же, что при деплое)
+make backend-exec CMD="pnpm exec medusa exec ./src/scripts/resize-images.js"   # разовая команда
+make backend-seed                       # демо-товары (для стенда; спросит подтверждение)
+make backend-user EMAIL=… PASSWORD=…    # админ Medusa
+
+make backend-logs SERVICE=worker SINCE=1h LINES=200   # server | worker | static | traefik → devops/logs/
+make backend-log-files NAME='import-*'  # файловые логи (импорт поставщиков, 1С, фиды) → devops/logs/files-*/
+
+make db-backup                          # бэкап сейчас (DOWNLOAD=1 — ещё и в devops/dumps)
+make db-backups                         # бэкапы на сервере
+make db-restore FILE=medusa-2026-10-04-0315.dump   # или путь к локальному .dump; спросит подтверждение
+
+make infra-site                         # привести серверы к описанному состоянию (идемпотентно)
+make infra-check                        # что изменит infra-site (--check --diff), ничего не меняя
 make infra-data TAGS=rabbitmq           # один сервис из data.yml
-make infra-site                          # привести сервер к описанному состоянию (идемпотентно)
-make prod-restart                        # перезапустить контейнеры (короткий простой)
-make prod-restart SERVICES=backend       # только backend
-make prod-down                           # остановить прод (спросит подтверждение), данные остаются
-make prod-up                             # поднять обратно
-make infra-lint
+make infra-lint                         # ansible-lint + syntax-check
 ```
+
+- `backend-exec`, `backend-seed` и `backend-user` запускают разовый контейнер `backend-tools`: тот же образ и env,
+  что у worker, с volumes загрузок, обмена и логов. Скрипты в образе собраны в `.js` (`./src/scripts/<имя>.js`).
+- `db-restore` перед восстановлением делает бэкап текущего состояния, останавливает backend и worker, пересоздаёт
+  БД, восстанавливает дамп, сбрасывает Redis (кэш Query и очереди относятся к старой БД), прогоняет миграции и ждёт
+  `healthy`.
+- Логи контейнеров (`backend-logs`) пишутся целиком в `devops/logs/` (в git не попадает), в консоль — последние
+  строки. `SERVICE=traefik` — access-лог traefik хоста backend (JSON).
 
 Откат — деплой предыдущего тега (`sha-…` есть в GHCR) или Re-run старого запуска Deploy в GitHub.
 Учтите: миграции БД назад не откатываются.
 
-На сервере:
-
-```bash
-cd /opt/olisa/backend && sudo docker compose logs -f backend backend-worker
-cd /opt/olisa/traefik && sudo docker compose logs -f traefik        # access-лог в JSON
-sudo docker ps
-```
-
-Доступ к БД снаружи не открыт. Подключаться — через SSH:
-
-```bash
-ssh deploy@<IP> 'sudo docker compose -f /opt/olisa/postgres/compose.yml exec postgres psql -U medusa medusa'
-```
+Доступа к БД снаружи нет: данные — `make pull-db` (ниже), разовые запросы — скриптом через `make backend-exec`.
 
 ## Бэкапы
 
 Каждую ночь cron делает дампы в `/opt/<project>/backups` и хранит `backup_keep_days` (7) дней:
 PostgreSQL — `pg_dump -Fc` в 03:15.
-Скрипты — `/opt/<project>/bin/backup-*`, команды восстановления — в их шапке. Лог — `journalctl -t olisa-backup-postgres`.
+Бэкап сейчас, список и восстановление — `make db-backup`, `make db-backups`, `make db-restore FILE=…`.
 
 Бэкапы лежат на том же сервере. Для прода добавьте копирование наружу (S3 / rclone / restic).
 
@@ -262,21 +285,29 @@ make pull-files                             # только загрузки → 
 - Исключили таблицу, на которую ссылаются другие (например `order`), — исключайте и зависимые шаблоном: `EXCLUDE='order*'`.
 - Импортировать уже скачанный файл: `devops/scripts/db-import.sh devops/dumps/postgres-….dump`.
 
-## Ещё один магазин из шаблона
+## Новый магазин сети
 
-1. Новый репозиторий из шаблона.
-2. `inventories/production`: IP, домен, почта, ключи, `image_prefix`. Если два магазина живут на одном сервере —
-   разные `project_name` (каталоги, volume, алиасы, роутеры не пересекутся; Traefik при этом нужен один).
-3. `make infra-vault && make infra-bootstrap && make infra-traefik && make infra-data`.
-4. Секреты и `DEPLOY_ENABLED` в GitHub → push в `main`.
+Магазин создаётся в админке Medusa («Магазины» → создать): канал продаж, publishable-ключ, корневая категория,
+секрет вебхука ревалидации. Деплой бэкенда не нужен. Фронт магазина из своего репозитория — запись в inventory и
+одна команда (шаг 9 плана: роль `storefront`, список `storefronts:`). Пока фронт в inventory один — `olisa`
+(`frontend_domain`, `storefront_slug`).
 
 Staging — копия `inventories/production` в `inventories/staging`, команды с `INVENTORY=staging`.
+
+## Переход со схемы «один магазин» (olisa-*)
+
+Имена контейнеров, volume и каталогов теперь от `project_name: snowaa` (`/opt/snowaa`, `snowaa-postgres-data`…),
+фронт — `olisa-frontend`, API — на домене сети. Старый стек `/opt/olisa` сам не переезжает: до релиза данные не
+нужны (план, «режим разработки»), поэтому сервер поднимается заново — `make infra-site` на чистом сервере. Если на
+сервере уже работал стек `olisa-*`, остановите его до деплоя новой схемы (`make prod-down` со старой версией
+репозитория) — иначе два traefik будут спорить за порты 80/443.
 
 ## Где что настраивать
 
 | Что | Где |
 |---|---|
-| Домены, ключи, флаги сервисов, подключения | `inventories/<env>/group_vars/all/main.yml` |
+| Хосты и их роли (`backend`, `storefronts`) | `inventories/<env>/hosts.yml` |
+| Домен сети, домен витрины, ключи, флаги сервисов, подключения | `inventories/<env>/group_vars/all/main.yml` |
 | Пароли и секреты | `inventories/<env>/group_vars/all/vault.yml` (ansible-vault) |
 | Переменные окружения Medusa (ЮKassa, СДЭК…) | `backend_env` (несекретные), `vault_backend_env` (секретные) |
 | Переменные Next.js в рантайме | `frontend_env` (`NEXT_PUBLIC_*` вшиваются при сборке образа) |

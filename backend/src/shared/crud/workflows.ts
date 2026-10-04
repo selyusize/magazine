@@ -1,4 +1,4 @@
-import { MedusaError } from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import {
   createStep,
   createWorkflow,
@@ -19,6 +19,7 @@ import type { Command } from "../contract/command";
 import type { DTO } from "../contract/dto";
 import { type CRUDDefinition, type CRUDRow, repository, toCRUDRow } from "./definition";
 import { resolveHandle } from "./handle";
+import { shopReferenceChecks, shopReferenceError } from "./shop-references";
 
 /** Вход изменения: id + меняемые поля. */
 export type UpdateEntityCommand = { id: string } & Command;
@@ -86,6 +87,34 @@ export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
     },
   );
 
+  /**
+   * Только чтение: ссылки тела (`shopReferences`) — на сущности магазина записи. Магазин — из тела (создание) или
+   * текущей строки (изменение: `shop_id` не меняется).
+   */
+  const validateShopReferencesStep = createStep(
+    `validate-${entity}-shop-references`,
+    async (input: { data: Command; id: string | null }, { container }) => {
+      const checks = shopReferenceChecks(definition.shopReferences ?? [], input.data);
+      if (!checks.length) return new StepResponse(undefined);
+
+      const [current] = input.id ? await repository(container, definition).list({ id: input.id }) : [];
+      if (input.id && !current) throw notFound(input.id);
+      const shopId = String(input.data.shop_id ?? current?.shop_id ?? "");
+
+      const query = container.resolve(ContainerRegistrationKeys.QUERY);
+      for (const check of checks) {
+        const { data } = await query.graph({
+          entity: check.reference.entity,
+          fields: ["id", check.reference.shop_field],
+          filters: { id: check.id },
+        });
+        const error = shopReferenceError(check, data[0], shopId);
+        if (error) throw error;
+      }
+      return new StepResponse(undefined);
+    },
+  );
+
   const insertStep = createStep(
     `insert-${entity}`,
     async (data: Command, { container }) => {
@@ -150,6 +179,9 @@ export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
     });
 
   const create = createWorkflow(`create-${entity}`, (command: Command) => {
+    validateShopReferencesStep(
+      transform(command, (command) => ({ data: command, id: null })),
+    );
     acquireLockStep({ key: lockKey, timeout: 30, ttl: 60 });
     const data = buildHandleStep(
       transform(command, (command) => ({ data: command, id: null })),
@@ -167,6 +199,9 @@ export function createCRUDWorkflows<TDTO extends DTO & { id: string }>(
   const update = createWorkflow(
     `update-${entity}`,
     (command: UpdateEntityCommand) => {
+      validateShopReferencesStep(
+        transform(command, ({ id, ...data }) => ({ data, id })),
+      );
       acquireLockStep({ key: lockKey, timeout: 30, ttl: 60 });
       const data = buildHandleStep(
         transform(command, ({ id, ...data }) => ({

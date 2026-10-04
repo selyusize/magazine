@@ -1,5 +1,7 @@
 {
-  "namespaces": ["public"],
+  "namespaces": [
+    "public"
+  ],
   "name": "public",
   "tables": [
     {
@@ -10,6 +12,22 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": true,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "shop_id": {
+          "name": "shop_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
           "nullable": false,
           "unique": false,
           "length": null,
@@ -140,7 +158,9 @@
         },
         {
           "keyName": "entity_path_pkey",
-          "columnNames": ["id"],
+          "columnNames": [
+            "id"
+          ],
           "composite": false,
           "constraint": true,
           "primary": true,
@@ -159,6 +179,22 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": true,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "shop_id": {
+          "name": "shop_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
           "nullable": false,
           "unique": false,
           "length": null,
@@ -302,15 +338,6 @@
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_redirect_from_path_unique",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_redirect_from_path_unique\" ON \"redirect\" (\"from_path\") WHERE deleted_at IS NULL"
-        },
-        {
           "keyName": "IDX_redirect_deleted_at",
           "columnNames": [],
           "composite": false,
@@ -320,17 +347,28 @@
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_redirect_deleted_at\" ON \"redirect\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_redirect_to_path",
+          "keyName": "IDX_redirect_shop_id_from_path_unique",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_redirect_to_path\" ON \"redirect\" (\"to_path\") WHERE deleted_at IS NULL"
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_redirect_shop_id_from_path_unique\" ON \"redirect\" (\"shop_id\", \"from_path\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_redirect_shop_id_to_path",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_redirect_shop_id_to_path\" ON \"redirect\" (\"shop_id\", \"to_path\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "redirect_pkey",
-          "columnNames": ["id"],
+          "columnNames": [
+            "id"
+          ],
           "composite": false,
           "constraint": true,
           "primary": true,

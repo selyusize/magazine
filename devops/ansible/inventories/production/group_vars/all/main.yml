@@ -3,9 +3,13 @@
 # переопределять их можно здесь же.
 
 # ─── Обязательно заполнить ──────────────────────────────────────────────────
-# Домен витрины. A-записи домена и поддоменов (www, api, traefik, rabbitmq) должны смотреть
-# на сервер до запуска traefik — иначе Let's Encrypt не выдаст сертификаты.
-domain: example.ru
+# Домен сети Snowaa: API и админка Medusa (api.<домен>), дашборд traefik, UI RabbitMQ. A-записи поддоменов
+# должны смотреть на сервер backend до запуска traefik — иначе Let's Encrypt не выдаст сертификаты.
+network_domain: snowaa.example
+# Домен витрины первого магазина (olisa); A-записи домена и www — на хост storefronts.
+# Шаг 9 плана заменит его списком `storefronts:` — по записи на магазин.
+frontend_domain: olisa.example.ru
+storefront_slug: olisa
 # Почта для Let's Encrypt (предупреждения об истечении сертификатов)
 acme_email: admin@example.ru
 # Публичные SSH-ключи пользователя деплоя: ваш и ключ CI (пара к секрету SSH_PRIVATE_KEY).
@@ -39,11 +43,10 @@ cdek_client_id: ""
 yandex_delivery_base_url: https://b2b-authproxy.taxi.yandex.net
 
 # ─── Домены ─────────────────────────────────────────────────────────────────
-frontend_domain: "{{ domain }}"
-# www.<домен> → <домен> (301)
+# www.<домен витрины> → <домен витрины> (301)
 frontend_redirect_www: true
-# Store/Admin API и админка Medusa: https://api.<домен>/app
-backend_domain: "api.{{ domain }}"
+# Store/Admin API и админка Medusa: https://api.<домен сети>/app — один на все магазины
+backend_domain: "api.{{ network_domain }}"
 
 # Подсети с доступом к служебным UI: дашборд traefik, RabbitMQ, админка Medusa (/app, /admin).
 # Например, офис и VPN: ["198.51.100.0/24", "203.0.113.7/32"]
@@ -72,9 +75,9 @@ pull_excluded_tables:
 deploy_user: deploy
 
 # ─── Внутреннее (обычно менять не нужно) ────────────────────────────────────
-# Префикс контейнеров (olisa-postgres, olisa-backend…), каталогов, volume и сетевых алиасов.
-# Разные магазины на одном сервере — разные имена.
-project_name: olisa
+# Имя сети: префикс контейнеров (snowaa-postgres, snowaa-backend…), каталогов (/opt/snowaa), volume и сетевых
+# алиасов. Фронты магазинов называются по магазину (olisa-frontend).
+project_name: snowaa
 project_dir: "/opt/{{ project_name }}"
 # proxy — traefik ↔ публичные сервисы (есть выход в интернет);
 # internal — приложения ↔ БД (internal: true — без выхода в интернет, наружу не публикуется)
@@ -105,3 +108,6 @@ rabbitmq_password: "{{ vault_rabbitmq_password }}"
 rabbitmq_vhost: "{{ project_name }}"
 
 backend_host: "{{ project_name }}-backend"
+backend_worker_host: "{{ project_name }}-backend-worker"
+# Контейнер фронта, его compose-проект, роутеры traefik и volume — по магазину: olisa-frontend
+frontend_container: "{{ storefront_slug }}-frontend"

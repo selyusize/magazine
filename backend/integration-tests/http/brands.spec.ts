@@ -4,7 +4,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 
 import productBrandLink from "../../src/links/product-brand";
 
-import { adminShopHeaders, storeHeaders, waitFor } from "./helpers/auth";
+import { testShopContext, waitFor } from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
 
 jest.setTimeout(120 * 1000);
@@ -39,11 +39,11 @@ medusaIntegrationTestRunner({
         (error) => error.response,
       );
 
+    // Бренды и их редиректы — в одном магазине
     beforeEach(async () => {
-      store = await storeHeaders(getContainer());
-      const { headers, shop } = await adminShopHeaders(api, getContainer());
-      admin = headers;
-      salesChannelId = shop.sales_channel_id ?? "";
+      const shop = await testShopContext(api, getContainer());
+      ({ store, admin } = shop);
+      salesChannelId = shop.shop.sales_channel_id ?? "";
     });
 
     it("создаёт бренд со slug из названия и уникализирует его", async () => {

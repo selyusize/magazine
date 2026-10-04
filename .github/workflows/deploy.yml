@@ -96,8 +96,9 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
           ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
 
+      # Та же цель, что ручной деплой с машины разработчика
       - name: Backend — миграции и выкат без простоя
-        run: ansible-playbook playbooks/backend.yml -e image_prefix="$IMAGE_PREFIX" -e backend_image_tag="$IMAGE_TAG"
+        run: make -C ../.. deploy-backend TAG="$IMAGE_TAG" IMAGE_PREFIX="$IMAGE_PREFIX"
 
       - name: Build-args витрины
         id: build-args
@@ -130,4 +131,4 @@ jobs:
           cache-to: type=gha,mode=max,scope=frontend
 
       - name: Frontend — выкат без простоя
-        run: ansible-playbook playbooks/frontend.yml -e image_prefix="$IMAGE_PREFIX" -e frontend_image_tag="$IMAGE_TAG"
+        run: make -C ../.. deploy-frontend TAG="$IMAGE_TAG" IMAGE_PREFIX="$IMAGE_PREFIX"

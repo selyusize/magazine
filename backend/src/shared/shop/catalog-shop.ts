@@ -11,6 +11,9 @@ export const PRODUCT_SHOP_FIELDS = ["sales_channels.id", "sales_channels.shop.id
 /** Магазин категории — по связи `shop ↔ product_category` (`src/links/shop-product-category.ts`). */
 export const CATEGORY_SHOP_FIELDS = ["shop.id"];
 
+/** Магазин коллекции — по связи `shop ↔ product_collection` (`src/links/shop-product-collection.ts`). */
+export const COLLECTION_SHOP_FIELDS = ["shop.id"];
+
 /** Каналы товара и их магазины: канал без магазина — `null`. */
 export type ProductShop = {
   /** Магазины каналов товара в порядке каналов; канал без магазина — `null`. */
@@ -32,6 +35,11 @@ export function toProductShop(row: unknown): ProductShop {
 
 /** Магазин категории из строки Query с `CATEGORY_SHOP_FIELDS` (или вложенной `…product_category`). */
 export function categoryShopId(row: unknown): string | null {
+  return isRecord(row) ? textOrNull(recordOrNull(row.shop)?.id) : null;
+}
+
+/** Магазин коллекции из строки Query с `COLLECTION_SHOP_FIELDS` (или вложенной `…collection`). */
+export function collectionShopId(row: unknown): string | null {
   return isRecord(row) ? textOrNull(recordOrNull(row.shop)?.id) : null;
 }
 

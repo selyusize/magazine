@@ -14,6 +14,9 @@ x-medusa-env: &medusa-env
   JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
   COOKIE_SECRET: ${COOKIE_SECRET}
   AUTH_MFA_ENCRYPTION_KEY: ${AUTH_MFA_ENCRYPTION_KEY}
+  # Шифрование секретов магазинов в БД; NODE_ENV=production — без него магазин не создаётся
+  SHOP_SECRETS_KEY: ${SHOP_SECRETS_KEY}
+  INITIAL_SHOP_REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
   STORE_CORS: ${STORE_CORS}
   ADMIN_CORS: ${ADMIN_CORS}
   AUTH_CORS: ${AUTH_CORS}
@@ -145,6 +148,8 @@ services:
       API_INTERNAL_URL: http://backend:9000
       # Регион для цен в каталоге и поиске; пусто — первый регион магазина
       MEDUSA_REGION_ID: ${MEDUSA_REGION_ID:-}
+      # Вебхук ревалидации от backend (секрет — `make dev-key`)
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     volumes:

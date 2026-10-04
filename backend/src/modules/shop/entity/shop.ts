@@ -7,7 +7,7 @@ import { model } from "@medusajs/framework/utils";
  */
 export const Shop = model.define("shop", {
   id: model.id({ prefix: "shop" }).primaryKey(),
-  /** Префикс handle сущностей Medusa (`olisa--utyug-philips`) — после создания не меняется. */
+  /** Префикс handle сущностей Medusa (`olisaːutyug-philips`, `src/shared/shop/shop-handle.ts`) — после создания не меняется. */
   slug: model.text().unique(),
   name: model.text().searchable(),
   /** Домен витрины без протокола (`olisa.ru`): по нему же CORS и письма. */
@@ -17,6 +17,11 @@ export const Shop = model.define("shop", {
   is_active: model.boolean().default(true),
   /** Корень своего дерева категорий — создаётся вместе с магазином. */
   root_category_id: model.text(),
+  /**
+   * Секрет вебхука ревалидации витрины (`POST {storefront_url}/api/revalidate`), зашифрован `SecretBox`. Тот же
+   * секрет лежит в env фронта магазина (`REVALIDATE_SECRET`, в Ansible — vault).
+   */
+  revalidate_secret: model.text(),
   /** Схема — `ShopSettingsSchema` в `src/shared/shop/shop-settings.ts`. */
   settings: model.json().default({}),
 });

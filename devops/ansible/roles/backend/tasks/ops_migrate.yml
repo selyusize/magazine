@@ -1,0 +1,15 @@
+# Миграции и migration-scripts Medusa (initial-data-seed и т. п.). Идемпотентно: применяются только новые.
+# Из деплоя (main.yml) и отдельно — make backend-migrate.
+- name: Миграции БД
+  ansible.builtin.command:
+    cmd: docker compose run --rm --name {{ project_name }}-backend-migrate backend-migrate
+    chdir: "{{ backend_dir }}"
+  register: backend_migrate
+  changed_when: false
+
+- name: Вывод миграций
+  ansible.builtin.debug:
+    msg: "{{ backend_migrate.stdout_lines[-20:] }}"
+    verbosity: "{{ 0 if backend_op | default('') == 'migrate' else 1 }}"
+  # В --check команда не выполняется — вывода нет
+  when: backend_migrate.stdout_lines is defined

@@ -1,10 +1,11 @@
-import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows";
+import { acquireLockStep, emitEventStep, releaseLockStep } from "@medusajs/medusa/core-flows";
 import {
   createWorkflow,
   transform,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
 
+import { REDIRECT_UPDATED, toRedirectEventData } from "../../service/redirect-events";
 import { findEntityPathsStep } from "../../step/find-entity-paths";
 import { saveRedirectsStep } from "../../step/save-redirects";
 import { trackEntityPathsStep } from "../../step/track-entity-paths";
@@ -26,12 +27,18 @@ export const syncFilterPagePathsByCategoryIdWorkflow = createWorkflow(
         filters: { category_id: command.category_id },
       })),
     );
-    const moves = trackEntityPathsStep(paths);
+    const tracked = trackEntityPathsStep(paths);
     saveRedirectsStep(
-      transform(moves, (moves) =>
+      transform(tracked, ({ moves }) =>
         moves.map((move) => ({ ...move, code: 301 as const })),
       ),
     );
+    emitEventStep({
+      eventName: REDIRECT_UPDATED,
+      data: transform(tracked, ({ moves, released_shop_ids }) =>
+        toRedirectEventData([...moves.map((move) => move.shop_id), ...released_shop_ids]),
+      ),
+    });
 
     releaseLockStep({ key: lockKey });
     return new WorkflowResponse(undefined);
