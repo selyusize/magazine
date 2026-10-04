@@ -56,6 +56,7 @@ export const supplierCRUD = defineCRUD<SupplierDTO>({
   module: SUPPLIER_MODULE,
   model: "Supplier",
   label: "поставщик",
+  shopScoped: true,
   response: { one: "supplier", many: "suppliers" },
   fields: [
     "id",

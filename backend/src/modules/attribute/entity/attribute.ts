@@ -6,10 +6,12 @@ import { AttributeValue } from "./attribute-value";
 /**
  * Характеристика товара («Материал», «Мощность, Вт»): источник фильтров каталога и `additionalProperty` в schema.org.
  * `handle` — код характеристики в адресах фильтров и в `filters` посадочных (`{ "material": ["hlopok"] }`).
+ * Характеристика принадлежит магазину `shop_id`; код пока уникален на всю сеть (по магазинам — шаг 4 плана).
  */
 export const Attribute = model
   .define("attribute", {
     id: model.id({ prefix: "attr" }).primaryKey(),
+    shop_id: model.text().index(),
     name: model.text().searchable(),
     handle: model.text().unique(),
     type: model.enum(["string", "number", "boolean"]).default("string"),

@@ -5,7 +5,7 @@ import type { EnsureBrandsByNamesCommand } from "./command";
 import type { BrandByNameDTO } from "./dto";
 import { ensureBrandsByNamesWorkflow } from "./workflow";
 
-/** Бренды для импорта: существующие по названию или синониму, недостающие — новые со slug. */
+/** Бренды магазина для импорта: существующие по названию или синониму, недостающие — новые со slug. */
 @Injectable()
 export class EnsureBrandsByNamesHandler extends AbstractCommandHandler<
   EnsureBrandsByNamesCommand,

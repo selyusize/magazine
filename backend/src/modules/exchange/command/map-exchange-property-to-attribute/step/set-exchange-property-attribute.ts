@@ -6,7 +6,10 @@ import type { ExchangeModuleService } from "../../../service/exchange-module-ser
 import type { MapExchangePropertyToAttributeCommand } from "../command";
 import type { MappedExchangePropertyDTO } from "../dto";
 
-/** Характеристика свойства; товары получат значения на следующем импорте (хэш изменится). Откат — прежняя. */
+/**
+ * Характеристика свойства — только из магазина поставщика (чужая — 400); товары получат значения на следующем
+ * импорте (хэш изменится). Откат — прежняя.
+ */
 export const setExchangePropertyAttributeStep = createStep(
   "set-exchange-property-attribute",
   async (command: MapExchangePropertyToAttributeCommand, { container }) => {
@@ -15,9 +18,17 @@ export const setExchangePropertyAttributeStep = createStep(
     if (!property) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Свойство поставщика ${command.id} не найдено`);
     if (command.attribute_id) {
       const query = container.resolve(ContainerRegistrationKeys.QUERY);
-      const { data } = await query.graph({ entity: "attribute", fields: ["id"], filters: { id: command.attribute_id } });
-      if (!data.length)
+      const [{ data: attributes }, { data: suppliers }] = await Promise.all([
+        query.graph({ entity: "attribute", fields: ["id", "shop_id"], filters: { id: command.attribute_id } }),
+        query.graph({ entity: "supplier", fields: ["id", "shop_id"], filters: { id: property.supplier_id } }),
+      ]);
+      if (!attributes.length)
         throw new MedusaError(MedusaError.Types.NOT_FOUND, `Характеристика ${command.attribute_id} не найдена`);
+      if (attributes[0].shop_id !== suppliers[0]?.shop_id)
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Характеристика ${command.attribute_id} из другого магазина — выберите характеристику магазина поставщика`,
+        );
     }
     await exchange.updateExchangeProperties({ id: property.id, attribute_id: command.attribute_id });
     const dto: MappedExchangePropertyDTO = { id: property.id, attribute_id: command.attribute_id };

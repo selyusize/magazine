@@ -9,7 +9,7 @@ import { createProductCategoriesWorkflow } from "@medusajs/medusa/core-flows";
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import sharp from "sharp";
 
-import { adminHeaders, waitFor } from "./helpers/auth";
+import { adminShopHeaders, waitFor } from "./helpers/auth";
 import { buildZip } from "./helpers/zip";
 
 jest.setTimeout(240 * 1000);
@@ -34,11 +34,12 @@ medusaIntegrationTestRunner({
   env: {},
   testSuite: ({ api, getContainer }) => {
     let admin: Record<string, string>;
+    let salesChannelId: string;
 
     const query = () => getContainer().resolve(ContainerRegistrationKeys.QUERY);
-    const post = (url: string, body: Record<string, unknown>) =>
-      api.post(url, body, { headers: admin }) as Promise<Response>;
-    const get = (url: string) => api.get(url, { headers: admin }) as Promise<Response>;
+    const post = (url: string, body: Record<string, unknown>, headers = admin) =>
+      api.post(url, body, { headers }) as Promise<Response>;
+    const get = (url: string, headers = admin) => api.get(url, { headers }) as Promise<Response>;
     const fail = (request: Promise<unknown>): Promise<Response> =>
       request.then(
         () => {
@@ -47,20 +48,27 @@ medusaIntegrationTestRunner({
         (error) => error.response,
       );
 
-    const createSupplier = async (name: string, exchange: Record<string, unknown>) => {
-      const { data } = await post("/admin/suppliers", {
-        name,
-        ship_city: "Москва",
-        exchange: { mode: "push", login: LOGIN, password: PASSWORD, ...exchange },
-        markup: { percent: 20 },
-      });
+    /** Поставщик в магазине админа `headers` (по умолчанию — магазин теста). */
+    const createSupplier = async (name: string, exchange: Record<string, unknown>, headers = admin) => {
+      const { data } = await post(
+        "/admin/suppliers",
+        {
+          name,
+          ship_city: "Москва",
+          exchange: { mode: "push", login: LOGIN, password: PASSWORD, ...exchange },
+          markup: { percent: 20 },
+        },
+        headers,
+      );
       // Склад поставщика создаёт подписчик — без него остатки некуда класть
-      await waitFor(async () => (await get(`/admin/suppliers/${data.supplier.id}`)).data.supplier.stock_location_id);
+      await waitFor(
+        async () => (await get(`/admin/suppliers/${data.supplier.id}`, headers)).data.supplier.stock_location_id,
+      );
       return data.supplier.id as string;
     };
 
     /** Сеанс 1С: checkauth → init → zip частями → import, пока не перестанет отвечать `progress`. */
-    const exchange = async (supplierId: string, files: Record<string, Buffer | string>) => {
+    const exchange = async (supplierId: string, files: Record<string, Buffer | string>, headers = admin) => {
       let cookie = "";
       const call = async (params: string, body?: Buffer, auth?: string) => {
         const config = {
@@ -93,8 +101,8 @@ medusaIntegrationTestRunner({
       }, 120_000);
       expect(result).toEqual(["success"]);
       expect((await call("mode=import&filename=offers.xml")).lines).toEqual(["success"]);
-      const { data } = await get(`/admin/import-runs?supplier_id=${supplierId}&limit=1`);
-      return (await get(`/admin/import-runs/${data.import_runs[0].id}`)).data.import_run;
+      const { data } = await get(`/admin/import-runs?supplier_id=${supplierId}&limit=1`, headers);
+      return (await get(`/admin/import-runs/${data.import_runs[0].id}`, headers)).data.import_run;
     };
 
     const packageFiles = async (overrides: Record<string, string> = {}) => ({
@@ -125,7 +133,10 @@ medusaIntegrationTestRunner({
           "thumbnail",
           "images.url",
           "metadata",
+          "brand.id",
           "brand.name",
+          "brand.shop_id",
+          "sales_channels.id",
           "product_main_category.category_id",
           "attribute_values.value",
           "variants.id",
@@ -143,17 +154,20 @@ medusaIntegrationTestRunner({
     const variant = (product: Record<string, any>, title: string) =>
       product.variants.find((item: { title: string }) => item.title === title);
 
-    const availability = async (container: MedusaContainer, variantId: string) => {
-      const { data } = await query().graph({ entity: "store", fields: ["default_sales_channel_id"] });
+    /** Наличие варианта в канале магазина (по умолчанию — магазина теста). */
+    const availability = async (container: MedusaContainer, variantId: string, channelId = salesChannelId) => {
       const result = await getVariantAvailability(container.resolve(ContainerRegistrationKeys.QUERY), {
         variant_ids: [variantId],
-        sales_channel_id: data[0]!.default_sales_channel_id!,
+        sales_channel_id: channelId,
       });
       return result[variantId].availability ?? 0;
     };
 
     beforeEach(async () => {
-      admin = await adminHeaders(api, getContainer());
+      // Поставщики, импорт, бренды и характеристики — в магазине: админ работает в своём магазине
+      const { headers, shop } = await adminShopHeaders(api, getContainer());
+      admin = headers;
+      salesChannelId = shop.sales_channel_id ?? "";
       await post("/admin/attributes", { name: "Материал" });
     });
 
@@ -297,7 +311,7 @@ medusaIntegrationTestRunner({
       expect(await availability(getContainer(), variant(suede, "Основной").id)).toBe(0);
     });
 
-    it("товар второго поставщика с тем же штрихкодом — та же карточка, наличие — сумма остатков", async () => {
+    it("товар второго поставщика того же магазина с тем же штрихкодом — та же карточка, наличие — сумма остатков", async () => {
       const alpha = await createSupplier("Альфа", {});
       await exchange(alpha, await packageFiles());
       const beta = await createSupplier("Бета", {});
@@ -321,6 +335,40 @@ medusaIntegrationTestRunner({
       expect(same.title).toBe("Кеды Suede Classic");
       expect(variant(same, "Основной").supplier_offers).toHaveLength(2);
       expect(await availability(getContainer(), variant(same, "Основной").id)).toBe(11);
+    });
+
+    it("магазины: одинаковый штрихкод у поставщиков разных магазинов — свои карточки, бренды, характеристики и склады", async () => {
+      const alpha = await createSupplier("Альфа", {});
+      await exchange(alpha, await packageFiles());
+
+      const other = await adminShopHeaders(api, getContainer());
+      const material = await post("/admin/attributes", { name: "Материал" }, other.headers);
+      const omega = await createSupplier("Омега", {}, other.headers);
+      const run = await exchange(omega, await packageFiles(), other.headers);
+
+      // Та же выгрузка в другом магазине не склеивается с карточками первого
+      expect(run.stats.products).toEqual({ received: 3, created: 3 });
+      const { product: own } = await card(alpha, "prd-suede");
+      const { product: theirs, row } = await card(omega, "prd-suede");
+      expect(row.is_owner).toBe(true);
+      expect(theirs.id).not.toBe(own.id);
+      expect(theirs.sales_channels).toEqual([{ id: other.shop.sales_channel_id }]);
+      expect(own.sales_channels).toEqual([{ id: salesChannelId }]);
+
+      // Бренд — свой в каждом магазине, характеристика — магазина поставщика
+      expect(theirs.brand).toEqual(expect.objectContaining({ name: "Puma", shop_id: other.shop.id }));
+      expect(theirs.brand.id).not.toBe(own.brand.id);
+      const { data: properties } = await get(`/admin/suppliers/${omega}/exchange-properties`, other.headers);
+      expect(properties.exchange_properties).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Материал", attribute_id: material.data.attribute.id }),
+        ]),
+      );
+
+      // Остатки поставщика видны только в канале его магазина
+      const variantId = variant(theirs, "Основной").id;
+      expect(await availability(getContainer(), variantId, other.shop.sales_channel_id ?? "")).toBe(7);
+      expect(await availability(getContainer(), variantId)).toBe(0);
     });
 
     it("pull: выгрузка по ссылке с Basic-доступом; недоступная ссылка — запуск failed, повтор упавшего", async () => {

@@ -1,4 +1,5 @@
 import type { Definition } from "@shared/container";
+import type { ShopOwnedRoute } from "@shared/shop/shop-ownership";
 import type { CreateShopCommand } from "@domain/shop/command/create-shop/command";
 
 const storefrontURL = process.env.STOREFRONT_URL || "http://localhost:3000";
@@ -14,6 +15,30 @@ export const initialShopConfig: CreateShopCommand = {
   storefront_url: storefrontURL,
   settings: {},
 };
+
+/**
+ * Реестр сущностей магазина в Admin API: `/admin/{resource}/:id` и вложенные пути — только из своего магазина
+ * (`x-shop-id`), чужая сущность — 404. Новая сущность магазина с роутами по id — одна строка здесь; списки
+ * фильтрует сама сущность (`shopScoped` в CRUD-фабрике или `shop_id` в запросе фетчера).
+ */
+export const shopOwnedRoutes: ShopOwnedRoute[] = [
+  { matcher: "/admin/suppliers/:id", entity: "supplier", shop_field: "shop_id", label: "поставщик" },
+  { matcher: "/admin/brands/:id", entity: "brand", shop_field: "shop_id", label: "бренд" },
+  { matcher: "/admin/attributes/:id", entity: "attribute", shop_field: "shop_id", label: "характеристика" },
+  { matcher: "/admin/import-runs/:id", entity: "import_run", shop_field: "supplier.shop_id", label: "запуск импорта" },
+  {
+    matcher: "/admin/exchange-groups/:id",
+    entity: "exchange_group",
+    shop_field: "supplier.shop_id",
+    label: "группа поставщика",
+  },
+  {
+    matcher: "/admin/exchange-properties/:id",
+    entity: "exchange_property",
+    shop_field: "supplier.shop_id",
+    label: "свойство поставщика",
+  },
+];
 
 /** Классы модуля shop собираются автоматически — определений нет. */
 const definitions: Definition<unknown>[] = [];

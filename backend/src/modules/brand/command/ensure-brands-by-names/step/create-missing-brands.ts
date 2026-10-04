@@ -10,8 +10,10 @@ import type { EnsureBrandsByNamesCommand } from "../command";
 import type { BrandByNameDTO } from "../dto";
 
 /**
- * Находит бренды по ключу названия (`brandKey`) среди названий и синонимов, недостающие создаёт со свободным slug.
- * Откат удаляет созданные. Handle выбирается под той же блокировкой, что и в CRUD брендов (`crud-handle:brand`).
+ * Находит бренды магазина по ключу названия (`brandKey`) среди названий и синонимов, недостающие создаёт в этом
+ * магазине со свободным slug. Бренды других магазинов не подходят, но их handle заняты: пока handle уникален на всю
+ * сеть (по магазинам — шаг 4 плана). Откат удаляет созданные. Handle выбирается под той же блокировкой, что и
+ * в CRUD брендов (`crud-handle:brand`).
  */
 export const createMissingBrandsStep = createStep(
   "create-missing-brands",
@@ -20,9 +22,9 @@ export const createMissingBrandsStep = createStep(
     const names = [...new Set(command.names.map((name) => name.trim()).filter(Boolean))];
     if (!names.length) return new StepResponse<BrandByNameDTO[], string[]>([], []);
 
-    const existing = await brands.listBrands({}, { select: ["id", "name", "synonyms", "handle"] });
+    const existing = await brands.listBrands({}, { select: ["id", "shop_id", "name", "synonyms", "handle"] });
     const byKey = new Map<string, string>();
-    for (const brand of existing) {
+    for (const brand of existing.filter((brand) => brand.shop_id === command.shop_id)) {
       for (const synonym of texts(brand.synonyms)) byKey.set(brandKey(synonym), brand.id);
       byKey.set(brandKey(brand.name), brand.id);
     }
@@ -41,7 +43,7 @@ export const createMissingBrandsStep = createStep(
 
       const display = brandDisplayName(name);
       const handle = await toUniqueSlug(toSlug(display) || "brand", async (candidate) => handles.has(candidate));
-      const brand = await brands.createBrands({ name: display, handle });
+      const brand = await brands.createBrands({ shop_id: command.shop_id, name: display, handle });
       handles.add(handle);
       byKey.set(key, brand.id);
       created.push(brand.id);

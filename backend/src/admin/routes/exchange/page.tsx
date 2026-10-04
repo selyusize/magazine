@@ -4,13 +4,23 @@ import { Container, Heading, Select, Tabs, Text } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 
 import { ExchangeSettingsSection } from "../../exchange/components/exchange-settings-section";
-import { Empty, GroupMappingSection } from "../../exchange/components/group-mapping-section";
+import {
+  Empty,
+  GroupMappingSection,
+} from "../../exchange/components/group-mapping-section";
 import { ImportRunsSection } from "../../exchange/components/import-runs-section";
 import { PropertyMappingSection } from "../../exchange/components/property-mapping-section";
 import { ReviewSection } from "../../exchange/components/review-section";
-import { EXCHANGE_TABS, useExchangePage } from "../../exchange/hooks/use-exchange-page";
+import {
+  EXCHANGE_TABS,
+  useExchangePage,
+} from "../../exchange/hooks/use-exchange-page";
+import { ShopSwitcher } from "../../shops/components/shop-switcher";
 
-/** Импорт CommerceML: настройки обмена поставщика, история запусков, маппинг групп и свойств, очередь разбора. */
+/**
+ * Импорт CommerceML текущего магазина: настройки обмена поставщика, история запусков, маппинг групп и свойств,
+ * очередь разбора.
+ */
 const ExchangePage = () => {
   const { t } = useTranslation();
   const page = useExchangePage();
@@ -25,22 +35,25 @@ const ExchangePage = () => {
             {t("exchange.description")}
           </Text>
         </div>
-        {page.suppliers.length > 0 && (
-          <div className="w-64">
-            <Select value={supplier?.id} onValueChange={page.setSupplierId}>
-              <Select.Trigger>
-                <Select.Value placeholder={t("exchange.selectSupplier")} />
-              </Select.Trigger>
-              <Select.Content>
-                {page.suppliers.map((item) => (
-                  <Select.Item key={item.id} value={item.id}>
-                    {item.name}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-4">
+          <ShopSwitcher />
+          {page.suppliers.length > 0 && (
+            <div className="w-64">
+              <Select value={supplier?.id} onValueChange={page.setSupplierId}>
+                <Select.Trigger>
+                  <Select.Value placeholder={t("exchange.selectSupplier")} />
+                </Select.Trigger>
+                <Select.Content>
+                  {page.suppliers.map((item) => (
+                    <Select.Item key={item.id} value={item.id}>
+                      {item.name}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </div>
+          )}
+        </div>
       </div>
 
       {page.error ? (

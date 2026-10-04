@@ -1,4 +1,6 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+
+import { recordOf, recordOrNull, textOrNull } from "@shared/query/narrow";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
 import type { SyncStockLocationForSupplierCommand } from "../command";
@@ -14,29 +16,27 @@ export type SupplierStockLocation = {
     name: string;
     address: { city: string; address_1: string; country_code: string };
   };
-  /** Канал продаж магазина: склад в нём — остатки видны в корзине. */
+  /** Канал продаж магазина поставщика: склад только в нём — остатки видны в корзине только этого магазина. */
   sales_channel_id: string | null;
 };
 
-/** Только чтение: поставщик (удалён — `null`, делать нечего) и канал продаж магазина по умолчанию. */
+/** Только чтение: поставщик (удалён — `null`, делать нечего) и канал продаж его магазина. */
 export const findSupplierStockLocationStep = createStep(
   "find-supplier-stock-location",
   async (command: SyncStockLocationForSupplierCommand, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
-    const [{ data: suppliers }, { data: stores }] = await Promise.all([
-      query.graph({
-        entity: "supplier",
-        fields: [
-          "id",
-          "name",
-          "ship_city",
-          "ship_address",
-          "stock_location_id",
-        ],
-        filters: { id: command.supplier_id },
-      }),
-      query.graph({ entity: "store", fields: ["default_sales_channel_id"] }),
-    ]);
+    const { data: suppliers } = await query.graph({
+      entity: "supplier",
+      fields: [
+        "id",
+        "name",
+        "ship_city",
+        "ship_address",
+        "stock_location_id",
+        "shop.sales_channel.id",
+      ],
+      filters: { id: command.supplier_id },
+    });
     const supplier = suppliers[0];
     if (!supplier) return new StepResponse<SupplierStockLocation | null>(null);
 
@@ -51,7 +51,9 @@ export const findSupplierStockLocationStep = createStep(
           country_code: COUNTRY_CODE,
         },
       },
-      sales_channel_id: stores[0]?.default_sales_channel_id ?? null,
+      sales_channel_id: textOrNull(
+        recordOrNull(recordOrNull(recordOf(supplier).shop)?.sales_channel)?.id,
+      ),
     });
   },
 );

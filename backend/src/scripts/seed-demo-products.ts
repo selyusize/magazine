@@ -146,7 +146,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   // Товары — в канал первого магазина (olisa): ключ его витрины видит только свой канал
   const { data: shops } = await query.graph({
     entity: "shop",
-    fields: ["sales_channel.id", "sales_channel.name"],
+    fields: ["id", "sales_channel.id", "sales_channel.name"],
     filters: { slug: initialShopConfig.slug },
   });
   const salesChannels = shops.flatMap((shop) =>
@@ -175,10 +175,11 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     fields: ["id", "supported_currencies.currency_code"],
   });
 
+  const shop = shops[0];
   const salesChannel = salesChannels[0];
   const shippingProfile = shippingProfiles[0];
 
-  if (!salesChannel || !shippingProfile) {
+  if (!shop || !salesChannel || !shippingProfile) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       "No sales channel or shipping profile found. Run the initial data seed first.",
@@ -409,7 +410,11 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   });
   const supplierId =
     existingSuppliers[0]?.id ??
-    (await app.get(supplierCRUD.handlers.create).handle(DEMO_SUPPLIER)).id;
+    (
+      await app
+        .get(supplierCRUD.handlers.create)
+        .handle({ ...DEMO_SUPPLIER, shop_id: shop.id })
+    ).id;
   // Normally the `supplier.created` subscriber does this; `medusa exec` may exit first
   await app
     .get(SyncStockLocationForSupplierHandler)

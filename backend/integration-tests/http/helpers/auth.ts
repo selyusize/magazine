@@ -67,6 +67,21 @@ export async function adminHeaders(
   return { authorization: `Bearer ${data.token}` };
 }
 
+/**
+ * Админ в новом магазине: JWT + `x-shop-id`. Разделы магазина (поставщики, бренды, характеристики, импорт) без
+ * заголовка отвечают 400, чужие сущности — 404.
+ */
+export async function adminShopHeaders(
+  api: API,
+  container: MedusaContainer,
+): Promise<{ headers: Record<string, string>; shop: CreatedShopDTO }> {
+  const [headers, shop] = await Promise.all([
+    adminHeaders(api, container),
+    createTestShop(container),
+  ]);
+  return { headers: { ...headers, "x-shop-id": shop.id }, shop };
+}
+
 /** Подписчики работают асинхронно — ждём, пока условие выполнится. */
 export async function waitFor<T>(
   check: () => Promise<T | null | undefined | false>,

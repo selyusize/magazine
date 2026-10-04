@@ -37,6 +37,12 @@ export type CRUDDefinition<TDTO extends DTO & { id: string }> = {
   fields: string[];
   /** Поля для поиска `?q=` (подстрока, без учёта регистра). */
   search: string[];
+  /**
+   * Сущность магазина (поле `shop_id`): список — только текущего магазина админки (`x-shop-id`, без него — 400),
+   * создание пишет его магазин, сменить магазин нельзя (поля нет в схемах). Доступ по id — строка в реестре
+   * `shopOwnedRoutes` (`src/container/common/shop.ts`).
+   */
+  shopScoped?: boolean;
   /** Поля для точного фильтра списка (`?category_id=`). */
   filters?: string[];
   /** Сортировка списка, по умолчанию — свежие сверху. */

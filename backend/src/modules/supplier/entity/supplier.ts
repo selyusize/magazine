@@ -8,10 +8,14 @@ import { SupplierOffer } from "./supplier-offer";
  * заказы (этап 15). На каждого — свой виртуальный склад Medusa (`stock_location_id`, создаёт подписчик на
  * `supplier.created`): остатки его предложений лежат там уровнями inventory, и стандартные резервы и наличие
  * в корзине работают без своего склада.
+ *
+ * Поставщик принадлежит одному магазину (`shop_id`, после создания не меняется): его товары, склад, бренды и
+ * характеристики из выгрузки живут в этом магазине.
  */
 export const Supplier = model
   .define("supplier", {
     id: model.id({ prefix: "sup" }).primaryKey(),
+    shop_id: model.text().index(),
     name: model.text().searchable(),
     contact_name: model.text().nullable(),
     phone: model.text().nullable(),

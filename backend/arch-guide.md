@@ -136,6 +136,8 @@ src/
   откатом, событие `{entity}.created|updated|deleted`, ответ — свежая строка из Query (с полями связей).
 - **Fetcher** списка (поиск `q`, фильтры, пагинация) и карточки (`NOT_FOUND`) — через Query.
 - **Action** на каждый роут и `middlewares(path)` с zod‑схемами из `crud/schema.ts`.
+- **Магазин** (`shopScoped: true`): список — только текущего магазина админки, создание пишет его `shop_id`; доступ
+  по id — строка в `shopOwnedRoutes` (п.9, «Магазин запроса и доступ к сущностям магазина»).
 - **Handle** (`handle: { from, scope }`): slug из названия под блокировкой; явный handle — slug из него, занят →
   400; переименование адрес не меняет; уникальность — в пределах `scope` (посадочная — внутри категории).
   Пути, 301 и 410 — модуль redirect по событиям (`URL_ENTITIES` в `redirect/service/path.ts`, подписчики
@@ -714,6 +716,25 @@ export default defineMiddlewares({
   routes: [...productReviewsMiddleware /* , ...остальные */],
 });
 ```
+
+### Магазин запроса и доступ к сущностям магазина
+
+Бэкенд обслуживает сеть магазинов. Магазин запроса кладут общие middleware (`src/api/middlewares/shop-context.ts`):
+Store API — по publishable-ключу, Admin API — по заголовку `x-shop-id`.
+
+- **Action** берёт магазин через `requireShop(req)` (Store, 403) / `requireAdminShop(req)` (Admin, 400 без заголовка)
+  и передаёт `shop_id` в Query / Command. Списки сущностей магазина фильтруются в фетчере по `shop_id`.
+- **Сущность магазина** — поле `shop_id` (не меняется после создания). CRUD-фабрика: опция `shopScoped: true` —
+  список только текущего магазина, создание пишет его `shop_id`.
+- **Доступ по id** — строка в реестре `shopOwnedRoutes` (`src/container/common/shop.ts`): `{ matcher, entity,
+  shop_field, label }`, где `shop_field` — своё поле (`shop_id`) или путь через read-only связь
+  (`supplier.shop_id`). Проверка работает для пути и всего под ним; чужая и несуществующая сущность — одинаково 404.
+  Это авторизация, поэтому она в middleware, а не в Handler/Fetcher: их же вызывают импорт и jobs, которые работают
+  на всю сеть.
+- **Ссылка на другую сущность в теле** (характеристика для свойства, бренд для товара) проверяется в шаге команды:
+  чужой магазин — `INVALID_DATA` (400).
+- **Магазин, производный от владельца** (поставщик → его магазин), команды не передают: шаг читает его сам
+  (`exchange/step/find-supplier-shop.ts`) — один источник правды.
 
 ---
 

@@ -9,7 +9,7 @@ import {
 } from "@medusajs/medusa/core-flows";
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 
-import { adminHeaders, waitFor } from "./helpers/auth";
+import { adminShopHeaders, waitFor } from "./helpers/auth";
 
 jest.setTimeout(120 * 1000);
 
@@ -24,6 +24,7 @@ medusaIntegrationTestRunner({
   env: {},
   testSuite: ({ api, getContainer }) => {
     let admin: Record<string, string>;
+    let salesChannelId: string;
 
     const query = () => getContainer().resolve(ContainerRegistrationKeys.QUERY);
     const post = (url: string, body: Record<string, unknown>) =>
@@ -37,14 +38,6 @@ medusaIntegrationTestRunner({
         },
         (error) => error.response,
       );
-
-    const defaultSalesChannelId = async (): Promise<string> => {
-      const { data } = await query().graph({
-        entity: "store",
-        fields: ["default_sales_channel_id"],
-      });
-      return data[0]!.default_sales_channel_id!;
-    };
 
     /** Поставщик и его склад — склад создаёт подписчик. */
     const createSupplier = async (
@@ -71,7 +64,7 @@ medusaIntegrationTestRunner({
             {
               title,
               status: "draft",
-              sales_channels: [{ id: await defaultSalesChannelId() }],
+              sales_channels: [{ id: salesChannelId }],
               options: [{ title: "Размер", values: ["M"] }],
               variants: [
                 {
@@ -91,7 +84,7 @@ medusaIntegrationTestRunner({
     const availability = async (variantId: string): Promise<number> => {
       const result = await getVariantAvailability(query(), {
         variant_ids: [variantId],
-        sales_channel_id: await defaultSalesChannelId(),
+        sales_channel_id: salesChannelId,
       });
       return result[variantId].availability ?? 0;
     };
@@ -108,10 +101,13 @@ medusaIntegrationTestRunner({
     };
 
     beforeEach(async () => {
-      admin = await adminHeaders(api, getContainer());
+      // Поставщики, бренды и характеристики — сущности магазина: админ работает в своём магазине
+      const { headers, shop } = await adminShopHeaders(api, getContainer());
+      admin = headers;
+      salesChannelId = shop.sales_channel_id ?? "";
     });
 
-    it("поставщик получает свой склад в канале продаж; переименование и город доходят до склада", async () => {
+    it("поставщик получает свой склад в канале продаж своего магазина; переименование и город доходят до склада", async () => {
       const supplier = await createSupplier({
         name: "Альфа",
         ship_city: "Москва",
@@ -139,7 +135,7 @@ medusaIntegrationTestRunner({
             city: "Москва",
             address_1: "ул. Складская, 1",
           }),
-          sales_channels: [{ id: await defaultSalesChannelId() }],
+          sales_channels: [{ id: salesChannelId }],
         }),
       );
 

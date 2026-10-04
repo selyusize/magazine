@@ -4,7 +4,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 
 import productBrandLink from "../../src/links/product-brand";
 
-import { adminHeaders, storeHeaders, waitFor } from "./helpers/auth";
+import { adminShopHeaders, storeHeaders, waitFor } from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
 
 jest.setTimeout(120 * 1000);
@@ -40,7 +40,7 @@ medusaIntegrationTestRunner({
 
     beforeEach(async () => {
       store = await storeHeaders(getContainer());
-      admin = await adminHeaders(api, getContainer());
+      admin = (await adminShopHeaders(api, getContainer())).headers;
     });
 
     it("создаёт бренд со slug из названия и уникализирует его", async () => {

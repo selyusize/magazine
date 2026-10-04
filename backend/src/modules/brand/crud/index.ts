@@ -23,6 +23,7 @@ export const brandCRUD = defineCRUD<BrandDTO>({
   module: BRAND_MODULE,
   model: "Brand",
   label: "бренд",
+  shopScoped: true,
   response: { one: "brand", many: "brands" },
   fields: [
     "id",

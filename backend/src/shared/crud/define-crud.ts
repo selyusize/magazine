@@ -14,6 +14,7 @@ import type { Action } from "../contract/action";
 import type { Command } from "../contract/command";
 import type { DTO } from "../contract/dto";
 import { AbstractFetcher } from "../query/abstract-fetcher";
+import { requireAdminShop, type ShopContext } from "../shop/shop-context";
 import { type CRUDDefinition, toCRUDRows } from "./definition";
 import {
   createCRUDWorkflows,
@@ -55,6 +56,9 @@ export function defineCRUD<TDTO extends DTO & { id: string }>(
 ) {
   const workflows = createCRUDWorkflows(definition);
   const { response, label } = definition;
+  /** Магазин запроса для сущности магазина; сетевой сущности — ничего. */
+  const shopOf = (req: { shop?: ShopContext }): { shop_id?: string } =>
+    definition.shopScoped ? { shop_id: requireAdminShop(req).id } : {};
 
   @Injectable()
   class CreateHandler extends AbstractCommandHandler<Command, TDTO> {
@@ -139,11 +143,14 @@ export function defineCRUD<TDTO extends DTO & { id: string }>(
       res: MedusaResponse,
     ): Promise<void> {
       const { q, limit, offset, ...rest } = req.validatedQuery;
-      const filters = Object.fromEntries(
-        (definition.filters ?? []).flatMap((field) =>
-          rest[field] ? [[field, String(rest[field])]] : [],
+      const filters = {
+        ...Object.fromEntries(
+          (definition.filters ?? []).flatMap((field) =>
+            rest[field] ? [[field, String(rest[field])]] : [],
+          ),
         ),
-      );
+        ...shopOf(req),
+      };
       const { rows, count } = await this.fetcher.fetch({
         q: q || undefined,
         limit,
@@ -172,9 +179,11 @@ export function defineCRUD<TDTO extends DTO & { id: string }>(
     constructor(private readonly handler: CreateHandler) {}
 
     async handle(req: Request<Command>, res: MedusaResponse): Promise<void> {
-      res
-        .status(201)
-        .json({ [response.one]: await this.handler.handle(req.validatedBody) });
+      const entity = await this.handler.handle({
+        ...req.validatedBody,
+        ...shopOf(req),
+      });
+      res.status(201).json({ [response.one]: entity });
     }
   }
 

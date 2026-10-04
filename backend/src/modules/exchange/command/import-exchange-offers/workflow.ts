@@ -7,20 +7,22 @@ import { applyExchangeProductContentWorkflow } from "../apply-exchange-product-c
 import { publishExchangeProductsWorkflow } from "../publish-exchange-products/workflow";
 import type { ImportExchangeOffersCommand } from "./command";
 import type { ImportedExchangeOffersDTO } from "./dto";
+import { findSupplierShopStep } from "../../step/find-supplier-shop";
 import { linkExchangeProductsStep } from "./step/link-exchange-products";
 import { loadExchangeOffersStateStep } from "./step/load-exchange-offers-state";
 import { planExchangeOffersStep } from "./step/plan-exchange-offers";
 import { resolvePlannedOffersStep } from "./step/resolve-planned-offers";
 
 /**
- * Пачка предложений одной транзакцией: новые карточки-черновики с вариантами (Medusa), связи товаров поставщика,
- * предложения и остатки (модуль supplier), розничные цены карточек владельца, содержимое новых карточек и
- * публикация готовых. Повтор той же пачки ничего не создаёт: карточки и предложения находятся по прежним связям.
+ * Пачка предложений одной транзакцией: новые карточки-черновики с вариантами в канале магазина поставщика (Medusa),
+ * склейка с карточками других поставщиков только этого магазина, связи товаров поставщика, предложения и остатки
+ * (модуль supplier), розничные цены карточек владельца, содержимое новых карточек и публикация готовых. Повтор той же пачки ничего не создаёт: карточки и предложения находятся по прежним связям.
  */
 export const importExchangeOffersWorkflow = createWorkflow(
   "import-exchange-offers",
   (command: ImportExchangeOffersCommand) => {
-    const state = loadExchangeOffersStateStep(command);
+    const shop = findSupplierShopStep(transform(command, (command) => ({ supplier_id: command.supplier_id })));
+    const state = loadExchangeOffersStateStep({ command, shop });
     const plan = planExchangeOffersStep({ command, state });
 
     const products = when("create-exchange-products", plan, (plan) => plan.create.length > 0).then(() =>

@@ -28,6 +28,7 @@ export const attributeCRUD = defineCRUD<AttributeDTO>({
   module: ATTRIBUTE_MODULE,
   model: "Attribute",
   label: "характеристика",
+  shopScoped: true,
   response: { one: "attribute", many: "attributes" },
   fields: [
     "id",

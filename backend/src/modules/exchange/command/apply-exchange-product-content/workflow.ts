@@ -6,6 +6,7 @@ import { setAttributeValuesForProductsWorkflow } from "@domain/attribute/command
 import { setCatalogForProductsWorkflow } from "@domain/catalog/command/set-catalog-for-products/workflow";
 
 import { ensureExchangeImagesStep } from "../../step/ensure-exchange-images";
+import { findSupplierShopStep } from "../../step/find-supplier-shop";
 import type { ApplyExchangeProductContentCommand } from "./command";
 import type { AppliedExchangeContentDTO } from "./dto";
 import { loadExchangeContentStep } from "./step/load-exchange-content";
@@ -13,9 +14,9 @@ import { planExchangeContentStep } from "./step/plan-exchange-content";
 import { saveExchangeSnapshotsStep } from "./step/save-exchange-snapshots";
 
 /**
- * Содержимое карточек из выгрузки. Каждый модуль пишет своё своим workflow (товар — Medusa, бренды — brand, связь
- * с брендом и основная категория — catalog, характеристики — attribute), всё в одной транзакции workflow:
- * упало — откатилось всё.
+ * Содержимое карточек из выгрузки. Каждый модуль пишет своё своим workflow (товар — Medusa, бренды магазина
+ * поставщика — brand, связь с брендом и основная категория — catalog, характеристики — attribute), всё в одной
+ * транзакции workflow: упало — откатилось всё.
  */
 export const applyExchangeProductContentWorkflow = createWorkflow(
   "apply-exchange-product-content",
@@ -28,8 +29,10 @@ export const applyExchangeProductContentWorkflow = createWorkflow(
         sources: loaded.rows.flatMap((row) => row.data.images),
       })),
     );
+    const shop = findSupplierShopStep(transform(command, (command) => ({ supplier_id: command.supplier_id })));
     const brands = ensureBrandsByNamesWorkflow.runAsStep({
-      input: transform(loaded, (loaded) => ({
+      input: transform({ loaded, shop }, ({ loaded, shop }) => ({
+        shop_id: shop.shop_id,
         names: loaded.rows.flatMap((row) => (row.data.brand ? [row.data.brand] : [])),
       })),
     });

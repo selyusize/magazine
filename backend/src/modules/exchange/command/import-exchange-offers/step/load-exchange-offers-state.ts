@@ -14,6 +14,7 @@ import {
 } from "@shared/query/narrow";
 
 import { ImportedProductSchema, nameKey } from "../../../service/imported-product";
+import type { SupplierShop } from "../../../step/find-supplier-shop";
 import { optionsKey } from "../../../service/offer-plan";
 import type { ExistingVariant, OffersImportState, StagedProduct } from "../../../service/offers-import-plan";
 import type { ImportExchangeOffersCommand } from "../command";
@@ -33,12 +34,12 @@ const unique = (values: (string | null | undefined)[]) => [
 
 /**
  * Только чтение: всё, что нужно плану пачки (`planOffersImport`) — товары поставщика, прежние связи предложений,
- * варианты карточек, дубли у других поставщиков (штрихкод, затем артикул + бренд), занятые handle, валюта, канал
- * продаж и профиль доставки магазина.
+ * варианты карточек, дубли у других поставщиков его магазина (штрихкод, затем артикул + бренд), занятые handle,
+ * валюта, канал продаж магазина поставщика и профиль доставки.
  */
 export const loadExchangeOffersStateStep = createStep(
   "load-exchange-offers-state",
-  async (command: ImportExchangeOffersCommand, { container }) => {
+  async ({ command, shop }: { command: ImportExchangeOffersCommand; shop: SupplierShop }, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const productExternalIds = unique(command.offers.map((offer) => offer.product_external_id));
 
@@ -55,7 +56,7 @@ export const loadExchangeOffersStateStep = createStep(
       }),
       query.graph({
         entity: "store",
-        fields: ["default_sales_channel_id", "supported_currencies.currency_code", "supported_currencies.is_default"],
+        fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
       }),
       query.graph({ entity: "shipping_profile", fields: ["id"], filters: { type: "default" } }),
     ]);
@@ -75,7 +76,7 @@ export const loadExchangeOffersStateStep = createStep(
       }),
     );
     const unlinked = Object.values(staged).filter((row) => !row.product_id && !row.is_deleted);
-    const duplicates = await findDuplicates(query, command, unlinked);
+    const duplicates = await findDuplicates(query, command, shop, unlinked);
 
     const productIds = unique([...Object.values(staged).map((row) => row.product_id), ...Object.values(duplicates)]);
     const store = stores[0];
@@ -94,7 +95,7 @@ export const loadExchangeOffersStateStep = createStep(
         unlinked.filter((row) => !duplicates[row.data.external_id]).map((row) => toSlug(row.data.title) || "product"),
       ),
       currency_code: currency,
-      sales_channel_id: store?.default_sales_channel_id ?? null,
+      sales_channel_id: shop.sales_channel_id,
       shipping_profile_id: profiles[0]?.id ?? null,
     };
     return new StepResponse(state);
@@ -103,10 +104,14 @@ export const loadExchangeOffersStateStep = createStep(
 
 type Query = { graph: (config: Record<string, unknown>) => Promise<{ data: unknown[] }> };
 
-/** Карточки других поставщиков с тем же штрихкодом, иначе — с тем же артикулом и брендом. */
+/**
+ * Карточки других поставщиков того же магазина с тем же штрихкодом, иначе — с тем же артикулом и брендом. Товары
+ * других магазинов не склеиваются: у каждого магазина свои карточки.
+ */
 async function findDuplicates(
   query: Query,
   command: ImportExchangeOffersCommand,
+  shop: SupplierShop,
   unlinked: StagedProduct[],
 ): Promise<Record<string, string>> {
   if (!unlinked.length) return {};
@@ -121,7 +126,14 @@ async function findDuplicates(
   const skus = unique(unlinked.filter((row) => row.data.brand).flatMap(skusOf));
   if (!barcodes.length && !skus.length) return {};
 
-  const others = { $ne: command.supplier_id };
+  const { data: neighbours } = await query.graph({
+    entity: "supplier",
+    fields: ["id"],
+    filters: { shop_id: shop.shop_id, id: { $ne: command.supplier_id } },
+  });
+  const others = unique(records(neighbours).map((supplier) => textOrNull(supplier.id)));
+  if (!others.length) return {};
+
   const [{ data: byBarcode }, { data: bySku }] = await Promise.all([
     barcodes.length
       ? query.graph({
