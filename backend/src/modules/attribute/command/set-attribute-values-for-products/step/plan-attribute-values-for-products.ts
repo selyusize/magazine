@@ -1,6 +1,9 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
+import { text, textOrNull } from "@shared/query/narrow";
+import { PRODUCT_SHOP_FIELDS, toProductShop } from "@shared/shop/catalog-shop";
+
 import { parseAttributeValue, toAttributeRef } from "../../../service/attribute-value";
 import type { AttributeValueRow } from "../../set-attribute-values-for-product/step/build-attribute-values";
 import type { SetAttributeValuesForProductsCommand } from "../command";
@@ -16,8 +19,8 @@ const signature = (rows: { attribute_id: string; handle: string }[]) =>
     .join("|");
 
 /**
- * Только чтение: значения приводятся к типам характеристик (неподходящие и неизвестные характеристики — в ошибки,
- * без падения пачки), совпадающие с текущими наборы отбрасываются — повторный импорт ничего не пишет.
+ * Только чтение: значения приводятся к типам характеристик (неподходящие, неизвестные и чужого магазина
+ * характеристики — в ошибки, без падения пачки), совпадающие с текущими наборы отбрасываются — повторный импорт ничего не пишет.
  */
 export const planAttributeValuesForProductsStep = createStep(
   "plan-attribute-values-for-products",
@@ -28,16 +31,19 @@ export const planAttributeValuesForProductsStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const attributeIds = [...new Set(command.items.flatMap((item) => item.values.map((value) => value.attribute_id)))];
     const productIds = command.items.map((item) => item.product_id);
-    const [{ data: attributes }, { data: current }] = await Promise.all([
+    const [{ data: attributes }, { data: current }, { data: products }] = await Promise.all([
       attributeIds.length
-        ? query.graph({ entity: "attribute", fields: ["id", "name", "type"], filters: { id: attributeIds } })
+        ? query.graph({ entity: "attribute", fields: ["id", "name", "type", "shop_id"], filters: { id: attributeIds } })
         : { data: [] },
       query.graph({
         entity: "attribute_value",
         fields: ["product_id", "attribute_id", "handle"],
         filters: { product_id: productIds, variant_id: null },
       }),
+      query.graph({ entity: "product", fields: ["id", ...PRODUCT_SHOP_FIELDS], filters: { id: productIds } }),
     ]);
+    const shopOfProduct = new Map(products.map((product): [string, string | null] => [text(product.id), toProductShop(product).shop_id]));
+    const shopOfAttribute = new Map(attributes.map((attribute): [string, string | null] => [text(attribute.id), textOrNull(attribute.shop_id)]));
     const byId = new Map(attributes.map(toAttributeRef).map((attribute) => [attribute.id, attribute]));
 
     for (const item of command.items) {
@@ -46,6 +52,10 @@ export const planAttributeValuesForProductsStep = createStep(
         const attribute = byId.get(input.attribute_id);
         if (!attribute) {
           plan.errors.push({ product_id: item.product_id, message: `Характеристика ${input.attribute_id} не найдена` });
+          continue;
+        }
+        if (shopOfAttribute.get(attribute.id) !== shopOfProduct.get(item.product_id)) {
+          plan.errors.push({ product_id: item.product_id, message: `Характеристика «${attribute.name}» — из другого магазина` });
           continue;
         }
         const parsed = parseAttributeValue(attribute, input.value);

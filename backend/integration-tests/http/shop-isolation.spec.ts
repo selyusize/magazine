@@ -1,7 +1,9 @@
+import { createProductCategoriesWorkflow, createProductsWorkflow } from "@medusajs/medusa/core-flows";
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 
 import { EXCHANGE_MODULE } from "../../src/modules/exchange";
 import type { ExchangeModuleService } from "../../src/modules/exchange/service/exchange-module-service";
+import type { CreatedShopDTO } from "../../src/modules/shop/command/create-shop/dto";
 
 import { adminShopHeaders, waitFor } from "./helpers/auth";
 
@@ -19,6 +21,8 @@ medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let a: Record<string, string>;
     let b: Record<string, string>;
+    let shopA: CreatedShopDTO;
+    let shopB: CreatedShopDTO;
 
     const call = (request: Promise<unknown>): Promise<Response> =>
       request.then(
@@ -46,9 +50,10 @@ medusaIntegrationTestRunner({
     };
 
     beforeEach(async () => {
-      [a, b] = (await Promise.all([adminShopHeaders(api, getContainer()), adminShopHeaders(api, getContainer())])).map(
-        (admin) => admin.headers,
-      );
+      [{ headers: a, shop: shopA }, { headers: b, shop: shopB }] = await Promise.all([
+        adminShopHeaders(api, getContainer()),
+        adminShopHeaders(api, getContainer()),
+      ]);
     });
 
     it("поставщики, бренды, характеристики: списки и карточки только своего магазина, чужие по id — 404", async () => {
@@ -123,6 +128,76 @@ medusaIntegrationTestRunner({
       expect(wrong.data.message).toContain("из другого магазина");
       const mapped = await post(`/admin/exchange-properties/${property.id}`, { attribute_id: own.id }, a);
       expect(mapped.data.exchange_property).toEqual({ id: property.id, attribute_id: own.id });
+    });
+
+    it("каталог: блоки карточки товара, предложения и категории — только в магазине товара", async () => {
+      const {
+        result: [product],
+      } = await createProductsWorkflow(getContainer()).run({
+        input: {
+          products: [
+            {
+              title: "Утюг",
+              status: "draft",
+              sales_channels: [{ id: shopA.sales_channel_id ?? "" }],
+              options: [{ title: "Размер", values: ["M"] }],
+              variants: [{ title: "M", options: { Размер: "M" }, prices: [{ amount: 100, currency_code: "rub" }] }],
+            },
+          ],
+        },
+      });
+      const supplierId = await createSupplier("Альфа", a);
+      const offer = (
+        await post(
+          "/admin/supplier-offers",
+          { supplier_id: supplierId, variant_id: product.variants[0].id, external_id: "o-1", quantity: 1 },
+          a,
+        )
+      ).data.supplier_offer;
+      await createProductCategoriesWorkflow(getContainer()).run({
+        input: {
+          product_categories: [
+            { name: "Утюги", is_active: true, parent_category_id: shopA.root_category_id },
+            { name: "Чайники", is_active: true, parent_category_id: shopB.root_category_id },
+          ],
+        },
+      });
+
+      // Магазин товара — сетевой роут, без заголовка
+      const { "x-shop-id": _shop, ...noShop } = a;
+      expect((await get(`/admin/products/${product.id}/shop`, noShop)).data.shop).toEqual(
+        expect.objectContaining({ id: shopA.id }),
+      );
+
+      // Категории магазина — только его дерево, без корня
+      expect((await get("/admin/shops/current/categories", a)).data.product_categories).toEqual([
+        expect.objectContaining({ name: "Утюги", parent_category_id: shopA.root_category_id }),
+      ]);
+      expect((await get("/admin/shops/current/categories", b)).data.product_categories).toEqual([
+        expect.objectContaining({ name: "Чайники" }),
+      ]);
+      expect((await get("/admin/shops/current/categories", noShop)).status).toBe(400);
+
+      // Предложения поставщиков — списком и по id только своего магазина
+      expect((await get("/admin/supplier-offers", a)).data.supplier_offers).toEqual([
+        expect.objectContaining({ id: offer.id }),
+      ]);
+      expect((await get("/admin/supplier-offers", b)).data.supplier_offers).toEqual([]);
+
+      const foreign = [
+        get(`/admin/products/${product.id}/catalog`, b),
+        post(`/admin/products/${product.id}/catalog`, { brand_id: null }, b),
+        get(`/admin/products/${product.id}/attributes`, b),
+        post(`/admin/products/${product.id}/attributes`, { variant_id: null, values: [] }, b),
+        get(`/admin/products/${product.id}/supplier-offers`, b),
+        get(`/admin/supplier-offers/${offer.id}`, b),
+        post(`/admin/supplier-offers/${offer.id}`, { quantity: 5 }, b),
+        remove(`/admin/supplier-offers/${offer.id}`, b),
+      ];
+      for (const response of await Promise.all(foreign)) expect(response.status).toBe(404);
+
+      expect((await get(`/admin/products/${product.id}/catalog`, a)).status).toBe(200);
+      expect((await get(`/admin/supplier-offers/${offer.id}`, a)).data.supplier_offer.quantity).toBe(1);
     });
   },
 });

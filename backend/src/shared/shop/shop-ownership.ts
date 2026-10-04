@@ -15,10 +15,20 @@ export type ShopOwnedRoute = {
   label: string;
 };
 
-/** Магазин строки Query по пути поля (`supplier.shop_id`); нет связи или поля — `null`. */
+/**
+ * Магазин строки Query по пути поля (`supplier.shop_id`, `sales_channels.shop.id`). Список на пути (каналы товара)
+ * даёт магазин, только если значение на нём ровно одно: товар без магазина или в двух магазинах — ничей. Нет связи
+ * или поля — `null`.
+ */
 export function shopIdAt(row: unknown, field: string): string | null {
-  const value = field
+  const values = field
     .split(".")
-    .reduce<unknown>((current, key) => (isRecord(current) ? current[key] : undefined), row);
-  return textOrNull(value);
+    .reduce<unknown[]>(
+      (current, key) =>
+        current.flatMap((item) => (Array.isArray(item) ? item : [item])).flatMap((item) => (isRecord(item) ? [item[key]] : [])),
+      [row],
+    )
+    .flatMap((value) => (Array.isArray(value) ? value : [value]))
+    .map(textOrNull);
+  return values.length === 1 ? values[0] : null;
 }

@@ -39,6 +39,21 @@ export async function createTestShop(
     });
 }
 
+/**
+ * Корень дерева нового магазина: категория без родителя или под ничьей категорией — 400 (хук `categoriesCreated`),
+ * поэтому тестовые категории создаются под ним.
+ */
+export async function testCategoryRoot(container: MedusaContainer): Promise<string> {
+  return (await createTestShop(container)).root_category_id;
+}
+
+/** Канал нового магазина для `sales_channels` товара: товар без ровно одного канала магазина — 400 (хук). */
+export async function testSalesChannels(
+  container: MedusaContainer,
+): Promise<{ id: string }[]> {
+  return [{ id: (await createTestShop(container)).sales_channel_id ?? "" }];
+}
+
 /** Заголовок с publishable-ключом нового магазина для Store API. */
 export async function storeHeaders(
   container: MedusaContainer,

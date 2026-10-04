@@ -4,18 +4,20 @@ import { adminFetch } from "../../lib/admin-fetch";
 
 type Category = { id: string; name: string; handle: string };
 
-/** Категории магазина для выбора в форме. Дерево плоское — для посадочных этого хватает. */
-export function useCategoryOptions(enabled: boolean) {
+/**
+ * Категории дерева магазина для выбора в форме (`GET /admin/shops/current/categories`): текущего из переключателя
+ * или явного `shopId` (карточка товара). Дерево плоское — для выбора этого хватает.
+ */
+export function useCategoryOptions(enabled: boolean, shopId?: string | null) {
   return useQuery({
-    queryKey: ["admin-crud-categories"],
+    queryKey: ["admin-shop-categories", shopId ?? "current"],
     queryFn: () =>
       adminFetch<{ product_categories: Category[] }>(
-        "/admin/product-categories",
-        {
-          query: { fields: "id,name,handle", limit: 1000 },
-        },
+        "/admin/shops/current/categories",
+        {},
+        shopId,
       ),
     select: (data) => data.product_categories,
-    enabled,
+    enabled: enabled && shopId !== null,
   });
 }

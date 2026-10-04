@@ -19,36 +19,44 @@ export type ProductCatalogInput = {
 const catalogKey = (productId: string) =>
   ["admin-product-catalog", productId] as const;
 
-export function useProductCatalog(productId: string) {
+/** Запросы блока — в магазине товара (`shopId`); пока он не известен, блок ждёт. */
+export function useProductCatalog(productId: string, shopId: string | null) {
   return useQuery({
     queryKey: catalogKey(productId),
     queryFn: () =>
       adminFetch<{ catalog: ProductCatalog }>(
         `/admin/products/${productId}/catalog`,
+        {},
+        shopId,
       ),
     select: (data) => data.catalog,
+    enabled: shopId !== null,
   });
 }
 
-/** Бренды для выбора. Справочник небольшой — первой сотни хватает; поиск появится, если станет тесно. */
-export function useBrandOptions() {
+/** Бренды магазина товара. Справочник небольшой — первой сотни хватает; поиск появится, если станет тесно. */
+export function useBrandOptions(shopId: string | null) {
   return useQuery({
-    queryKey: ["admin-product-catalog-brands"],
+    queryKey: ["admin-product-catalog-brands", shopId],
     queryFn: () =>
-      adminFetch<{ brands: Named[] }>("/admin/brands", {
-        query: { limit: 100 },
-      }),
+      adminFetch<{ brands: Named[] }>(
+        "/admin/brands",
+        { query: { limit: 100 } },
+        shopId,
+      ),
     select: (data) => data.brands,
+    enabled: shopId !== null,
   });
 }
 
-export function useSaveProductCatalog(productId: string) {
+export function useSaveProductCatalog(productId: string, shopId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: ProductCatalogInput) =>
       adminFetch<{ catalog: ProductCatalog }>(
         `/admin/products/${productId}/catalog`,
         { method: "POST", body },
+        shopId,
       ),
     onSuccess: (data) => queryClient.setQueryData(catalogKey(productId), data),
   });

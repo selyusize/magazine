@@ -25,6 +25,7 @@ medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let admin: Record<string, string>;
     let salesChannelId: string;
+    let rootCategoryId: string;
 
     const query = () => getContainer().resolve(ContainerRegistrationKeys.QUERY);
     const post = (url: string, body: Record<string, unknown>) =>
@@ -94,7 +95,9 @@ medusaIntegrationTestRunner({
         result: [category],
       } = await createProductCategoriesWorkflow(getContainer()).run({
         input: {
-          product_categories: [{ name: handle, handle, is_active: true }],
+          product_categories: [
+            { name: handle, handle, is_active: true, parent_category_id: rootCategoryId },
+          ],
         },
       });
       return category.id;
@@ -105,6 +108,7 @@ medusaIntegrationTestRunner({
       const { headers, shop } = await adminShopHeaders(api, getContainer());
       admin = headers;
       salesChannelId = shop.sales_channel_id ?? "";
+      rootCategoryId = shop.root_category_id;
     });
 
     it("поставщик получает свой склад в канале продаж своего магазина; переименование и город доходят до склада", async () => {

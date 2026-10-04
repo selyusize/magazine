@@ -19,6 +19,7 @@ import {
 
 import { toCRUDRow } from "@shared/crud/definition";
 import { records } from "@shared/query/narrow";
+import { SHOP_ROOT_CATEGORY_DATA } from "@shared/shop/catalog-shop";
 import { toStoredHandle } from "@shared/shop/shop-slug";
 
 import { SHOP_MODULE } from "../../index";
@@ -37,7 +38,7 @@ const ROOT_CATEGORY_HANDLE = "catalog";
 
 /**
  * Магазин сети за один сценарий: канал продаж → publishable-ключ этого канала → корневая категория → запись
- * магазина и связи с каналом и ключом → канал видит склады с доставкой (иначе в корзине нет способов доставки).
+ * магазина и связи с каналом, ключом и корнем дерева → канал видит склады с доставкой (иначе в корзине нет способов доставки).
  * Регион «Россия» в Medusa не привязан к каналу — он общий для всех магазинов. У каждого шага свой откат: падение
  * на любом убирает уже созданное.
  */
@@ -88,6 +89,7 @@ export const createShopWorkflow = createWorkflow(
             is_internal: false,
           },
         ],
+        additional_data: SHOP_ROOT_CATEGORY_DATA,
       })),
     });
 
@@ -100,8 +102,8 @@ export const createShopWorkflow = createWorkflow(
 
     createRemoteLinkStep(
       transform(
-        { shop, salesChannels, apiKey },
-        ({ shop, salesChannels, apiKey }): LinkDefinition[] => [
+        { shop, salesChannels, apiKey, categories },
+        ({ shop, salesChannels, apiKey, categories }): LinkDefinition[] => [
           {
             [SHOP_MODULE]: { shop_id: shop.id },
             [Modules.SALES_CHANNEL]: { sales_channel_id: salesChannels[0].id },
@@ -109,6 +111,10 @@ export const createShopWorkflow = createWorkflow(
           {
             [SHOP_MODULE]: { shop_id: shop.id },
             [Modules.API_KEY]: { api_key_id: apiKey.id },
+          },
+          {
+            [SHOP_MODULE]: { shop_id: shop.id },
+            [Modules.PRODUCT]: { product_category_id: categories[0].id },
           },
         ],
       ),

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCategoryOptions } from "../../crud/hooks/use-category-options";
+import { useProductShop } from "../../shops/hooks/use-product-shop";
 import {
   useBrandOptions,
   useProductCatalog,
@@ -12,13 +13,15 @@ import {
 /** В Select нельзя выбрать пустое значение — «не выбрано» кодируем отдельным ключом. */
 export const NONE = "__none";
 
-/** Блок «Каталог» карточки товара: бренд и основная категория, сохранение одной кнопкой. */
+/** Блок «Каталог» карточки товара: бренд и основная категория из магазина товара, сохранение одной кнопкой. */
 export function useProductCatalogForm(productId: string) {
   const { t } = useTranslation();
-  const catalog = useProductCatalog(productId);
-  const brands = useBrandOptions();
-  const categories = useCategoryOptions(true);
-  const save = useSaveProductCatalog(productId);
+  const shop = useProductShop(productId);
+  const shopId = shop.data?.id ?? null;
+  const catalog = useProductCatalog(productId, shopId);
+  const brands = useBrandOptions(shopId);
+  const categories = useCategoryOptions(true, shopId);
+  const save = useSaveProductCatalog(productId, shopId);
 
   const [brandId, setBrandId] = useState(NONE);
   const [mainCategoryId, setMainCategoryId] = useState(NONE);
@@ -56,8 +59,8 @@ export function useProductCatalogForm(productId: string) {
     );
 
   return {
-    isLoading: catalog.isLoading,
-    error: catalog.error,
+    isLoading: shop.isLoading || catalog.isLoading,
+    error: shop.error ?? catalog.error,
     brands: brands.data ?? [],
     categories: categoryOptions,
     productCategoryIds,

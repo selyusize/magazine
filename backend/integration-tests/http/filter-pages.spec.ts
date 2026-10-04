@@ -5,7 +5,7 @@ import {
   updateProductCategoriesWorkflow,
 } from "@medusajs/medusa/core-flows";
 
-import { adminHeaders, storeHeaders, waitFor } from "./helpers/auth";
+import { adminHeaders, storeHeaders, testCategoryRoot, waitFor } from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
 
 jest.setTimeout(120 * 1000);
@@ -29,7 +29,14 @@ medusaIntegrationTestRunner({
         result: [category],
       } = await createProductCategoriesWorkflow(getContainer()).run({
         input: {
-          product_categories: [{ name: handle, handle, is_active: true }],
+          product_categories: [
+            {
+              name: handle,
+              handle,
+              is_active: true,
+              parent_category_id: await testCategoryRoot(getContainer()),
+            },
+          ],
         },
       });
       return category.id;

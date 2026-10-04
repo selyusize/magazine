@@ -9,7 +9,13 @@ import {
 } from "@medusajs/medusa/core-flows";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
-import { adminHeaders, storeHeaders, waitFor } from "./helpers/auth";
+import {
+  adminHeaders,
+  storeHeaders,
+  testCategoryRoot,
+  testSalesChannels,
+  waitFor,
+} from "./helpers/auth";
 import { trackedPath } from "./helpers/redirects";
 
 jest.setTimeout(120 * 1000);
@@ -168,7 +174,13 @@ medusaIntegrationTestRunner({
           result: [category],
         } = await createProductCategoriesWorkflow(getContainer()).run({
           input: {
-            product_categories: [{ name: "Мужская обувь", is_active: true }],
+            product_categories: [
+              {
+                name: "Мужская обувь",
+                is_active: true,
+                parent_category_id: await testCategoryRoot(getContainer()),
+              },
+            ],
           },
         });
 
@@ -211,6 +223,7 @@ medusaIntegrationTestRunner({
               {
                 title: "Футболка хлопковая",
                 status: "draft",
+                sales_channels: await testSalesChannels(getContainer()),
                 options: [{ title: "Размер", values: ["M"] }],
               },
             ],
@@ -255,6 +268,7 @@ medusaIntegrationTestRunner({
                   title: "Кепка",
                   handle,
                   status: "draft",
+                  sales_channels: await testSalesChannels(getContainer()),
                   options: [{ title: "Размер", values: ["M"] }],
                 },
               ],
@@ -299,7 +313,12 @@ medusaIntegrationTestRunner({
         } = await createProductCategoriesWorkflow(getContainer()).run({
           input: {
             product_categories: [
-              { name: "Sale", handle: "sale", is_active: true },
+              {
+                name: "Sale",
+                handle: "sale",
+                is_active: true,
+                parent_category_id: await testCategoryRoot(getContainer()),
+              },
             ],
           },
         });
@@ -326,13 +345,22 @@ medusaIntegrationTestRunner({
       });
 
       it("делает handle уникальным", async () => {
+        const parent_category_id = await testCategoryRoot(getContainer());
         await createProductCategoriesWorkflow(getContainer()).run({
-          input: { product_categories: [{ name: "Шапки", is_active: true }] },
+          input: {
+            product_categories: [
+              { name: "Шапки", is_active: true, parent_category_id },
+            ],
+          },
         });
         const {
           result: [second],
         } = await createProductCategoriesWorkflow(getContainer()).run({
-          input: { product_categories: [{ name: "Шапки!", is_active: true }] },
+          input: {
+            product_categories: [
+              { name: "Шапки!", is_active: true, parent_category_id },
+            ],
+          },
         });
 
         await waitFor(

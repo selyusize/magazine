@@ -26,7 +26,8 @@ export type ListEntitiesQuery = {
   q?: string;
   limit: number;
   offset: number;
-  filters: Record<string, string>;
+  /** Точные фильтры; магазин через связь — вложенным объектом (`{ supplier: { shop_id } }`). */
+  filters: Record<string, string | Record<string, string>>;
 };
 
 export type EntitiesPageDTO<TDTO extends DTO> = { rows: TDTO[]; count: number };
@@ -56,9 +57,16 @@ export function defineCRUD<TDTO extends DTO & { id: string }>(
 ) {
   const workflows = createCRUDWorkflows(definition);
   const { response, label } = definition;
-  /** Магазин запроса для сущности магазина; сетевой сущности — ничего. */
+  const { shopScoped } = definition;
+  /** Магазин запроса в новую строку: только у сущности со своим `shop_id`. */
   const shopOf = (req: { shop?: ShopContext }): { shop_id?: string } =>
-    definition.shopScoped ? { shop_id: requireAdminShop(req).id } : {};
+    shopScoped === true ? { shop_id: requireAdminShop(req).id } : {};
+  /** Фильтр списка по магазину запроса: своё поле или поле связи; сетевой сущности — ничего. */
+  const shopFilterOf = (req: { shop?: ShopContext }): ListEntitiesQuery["filters"] => {
+    if (!shopScoped) return {};
+    const shop_id = requireAdminShop(req).id;
+    return shopScoped === true ? { shop_id } : { [shopScoped.through]: { shop_id } };
+  };
 
   @Injectable()
   class CreateHandler extends AbstractCommandHandler<Command, TDTO> {
@@ -149,7 +157,7 @@ export function defineCRUD<TDTO extends DTO & { id: string }>(
             rest[field] ? [[field, String(rest[field])]] : [],
           ),
         ),
-        ...shopOf(req),
+        ...shopFilterOf(req),
       };
       const { rows, count } = await this.fetcher.fetch({
         q: q || undefined,

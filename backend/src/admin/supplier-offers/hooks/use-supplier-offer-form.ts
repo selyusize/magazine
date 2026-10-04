@@ -21,7 +21,7 @@ export function useSupplierOfferForm(
 ) {
   const { t } = useTranslation();
   const save = useSaveSupplierOffer(productId);
-  const suppliers = useSupplierOptions(offer === null);
+  const suppliers = useSupplierOptions(productId, offer === null);
 
   const [supplierId, setSupplierId] = useState(offer?.supplier_id ?? "");
   const [variantId, setVariantId] = useState(offer?.variant_id ?? "");

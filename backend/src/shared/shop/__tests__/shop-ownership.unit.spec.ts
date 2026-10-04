@@ -15,4 +15,15 @@ describe("shopIdAt", () => {
     expect(shopIdAt({ shop_id: 42 }, "shop_id")).toBeNull();
     expect(shopIdAt(undefined, "shop_id")).toBeNull();
   });
+
+  it("путь через список: ровно один магазин — он, иначе null", () => {
+    const product = (...shops: (string | null)[]) => ({
+      id: "prod_1",
+      sales_channels: shops.map((id) => ({ id: "sc", shop: id ? { id } : null })),
+    });
+    expect(shopIdAt(product("shop_a"), "sales_channels.shop.id")).toBe("shop_a");
+    expect(shopIdAt(product(), "sales_channels.shop.id")).toBeNull();
+    expect(shopIdAt(product("shop_a", "shop_b"), "sales_channels.shop.id")).toBeNull();
+    expect(shopIdAt(product(null), "sales_channels.shop.id")).toBeNull();
+  });
 });

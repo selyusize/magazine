@@ -38,6 +38,21 @@ export const shopOwnedRoutes: ShopOwnedRoute[] = [
     shop_field: "supplier.shop_id",
     label: "свойство поставщика",
   },
+  {
+    matcher: "/admin/supplier-offers/:id",
+    entity: "supplier_offer",
+    shop_field: "supplier.shop_id",
+    label: "предложение поставщика",
+  },
+  // Блоки карточки товара: роуты Medusa `/admin/products/:id` — сетевые, свои подпути — в магазине товара
+  ...["catalog", "attributes", "supplier-offers"].map(
+    (block): ShopOwnedRoute => ({
+      matcher: `/admin/products/:id/${block}`,
+      entity: "product",
+      shop_field: "sales_channels.shop.id",
+      label: "товар",
+    }),
+  ),
 ];
 
 /** Классы модуля shop собираются автоматически — определений нет. */

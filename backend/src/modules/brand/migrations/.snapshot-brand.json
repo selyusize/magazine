@@ -171,24 +171,6 @@
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_brand_shop_id",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_brand_shop_id\" ON \"brand\" (\"shop_id\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "IDX_brand_handle_unique",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_brand_handle_unique\" ON \"brand\" (\"handle\") WHERE deleted_at IS NULL"
-        },
-        {
           "keyName": "IDX_brand_deleted_at",
           "columnNames": [],
           "composite": false,
@@ -196,6 +178,15 @@
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_brand_deleted_at\" ON \"brand\" (\"deleted_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_brand_shop_id_handle_unique",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_brand_shop_id_handle_unique\" ON \"brand\" (\"shop_id\", \"handle\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "brand_pkey",

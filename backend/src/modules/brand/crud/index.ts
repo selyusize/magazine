@@ -17,7 +17,7 @@ const toBrandDTO = (row: CRUDRow): BrandDTO => ({
   updated_at: toDate(row.updated_at),
 });
 
-/** CRUD брендов для админки — /admin/brands. Handle — slug из названия, события `brand.*` → редиректы. */
+/** CRUD брендов для админки — /admin/brands. Handle — slug из названия, уникален в магазине; события `brand.*` → редиректы. */
 export const brandCRUD = defineCRUD<BrandDTO>({
   entity: "brand",
   module: BRAND_MODULE,
@@ -37,7 +37,7 @@ export const brandCRUD = defineCRUD<BrandDTO>({
   ],
   search: ["name", "handle"],
   order: { name: "ASC" },
-  handle: { from: "name" },
+  handle: { from: "name", scope: ["shop_id"] },
   schemas: { create: CreateBrandSchema, update: UpdateBrandSchema },
   toDTO: toBrandDTO,
 });

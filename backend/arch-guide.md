@@ -735,6 +735,23 @@ Store API — по publishable-ключу, Admin API — по заголовку
   чужой магазин — `INVALID_DATA` (400).
 - **Магазин, производный от владельца** (поставщик → его магазин), команды не передают: шаг читает его сам
   (`exchange/step/find-supplier-shop.ts`) — один источник правды.
+- **Магазин сущностей Medusa** — не поле, а связь: товар — магазин его единственного канала продаж
+  (`sales_channels.shop`), категория — связь `shop ↔ product_category`. Поля Query и разбор — только через
+  `src/shared/shop/catalog-shop.ts` (`PRODUCT_SHOP_FIELDS` + `toProductShop`, `CATEGORY_SHOP_FIELDS` +
+  `categoryShopId`); чужая сущность в команде — `foreignShopError(...)` (400). В реестре `shopOwnedRoutes` путь через
+  список (`sales_channels.shop.id`) даёт магазин, только если он ровно один.
+- **Инварианты сущностей Medusa** — хуки их workflows (`src/workflows/hooks/`), а не свои роуты поверх: так правило
+  действует для админки, импорта CSV, импорта поставщика и скриптов. Правила — таблица в `service/*-rules.ts`
+  (чистая функция + unit-тест на таблицу случаев), чтение — фетчер, хук вызывает guard. У хука Medusa один
+  обработчик: несколько проверок одного хука — список в одном классе (`catalog/service/product-guards.ts`).
+  Хук, который пишет (связь новой категории с магазином), вызывает команду и возвращает `StepResponse` с данными для
+  отката, откат — обратная команда (`assign-shop-to-categories` / `remove-shop-from-categories`).
+- **Магазин через связь в CRUD-фабрике** — `shopScoped: { through: "supplier" }`: список фильтруется по
+  `supplier.shop_id`, `shop_id` в строку не пишется (предложение поставщика).
+- **Блоки карточки товара в админке** работают в магазине товара, а не переключателя: `GET /admin/products/:id/shop`
+  (сетевой роут) → `adminFetch(url, init, shopId)`; подпути `/admin/products/:id/{catalog,attributes,supplier-offers}`
+  — в реестре `shopOwnedRoutes`. Список категорий Medusa `/admin/product-categories` сетевой — формы берут
+  `GET /admin/shops/current/categories`.
 
 ---
 
@@ -849,6 +866,10 @@ export const config: SubscriberConfig = { event: "order.placed" };
   `waitFor` из `integration-tests/http/helpers/auth.ts`, там же `storeHeaders` и `adminHeaders`.
 - Маршрут целиком (route → Action → Handler/Fetcher → БД) — `integration-tests/http/`, `pnpm test:integration:http`.
   Новый роут витрины без интеграционного теста не считается готовым.
+- Товар и категория в тесте — только в магазине: товар с `sales_channels` канала тестового магазина
+  (`testSalesChannels`), категория под его корнем (`testCategoryRoot`), иначе хуки отклонят создание. Ошибку хука
+  `workflow(container).run()` из файла теста не бросает — запускать с `throwOnError: false` и проверять `errors`
+  (пример — `catalog-shop.spec.ts`); через Admin API ошибка приходит обычным 400.
 
 ---
 

@@ -6,18 +6,21 @@ import {
   toAttributeFormValues,
   toAttributeValuesBody,
 } from "./attribute-form-values";
+import { useProductShop } from "../../shops/hooks/use-product-shop";
 import {
   useAttributes,
   useProductAttributeValues,
   useSaveProductAttributeValues,
 } from "./product-attributes-api";
 
-/** Блок «Характеристики» карточки товара: по полю на характеристику, сохранение заменяет значения товара целиком. */
+/** Блок «Характеристики» карточки товара: по полю на характеристику магазина товара, сохранение заменяет значения товара целиком. */
 export function useProductAttributesForm(productId: string) {
   const { t } = useTranslation();
-  const attributes = useAttributes();
-  const values = useProductAttributeValues(productId);
-  const save = useSaveProductAttributeValues(productId);
+  const shop = useProductShop(productId);
+  const shopId = shop.data?.id ?? null;
+  const attributes = useAttributes(shopId);
+  const values = useProductAttributeValues(productId, shopId);
+  const save = useSaveProductAttributeValues(productId, shopId);
 
   const saved = useMemo(
     () =>
@@ -41,8 +44,8 @@ export function useProductAttributesForm(productId: string) {
     });
 
   return {
-    isLoading: attributes.isLoading || values.isLoading,
-    error: attributes.error ?? values.error,
+    isLoading: shop.isLoading || attributes.isLoading || values.isLoading,
+    error: shop.error ?? attributes.error ?? values.error,
     attributes: attributes.data ?? [],
     form,
     setValue: (attributeId: string, value: string) =>

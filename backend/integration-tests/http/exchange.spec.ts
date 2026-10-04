@@ -35,6 +35,7 @@ medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let admin: Record<string, string>;
     let salesChannelId: string;
+    let rootCategoryId: string;
 
     const query = () => getContainer().resolve(ContainerRegistrationKeys.QUERY);
     const post = (url: string, body: Record<string, unknown>, headers = admin) =>
@@ -168,6 +169,7 @@ medusaIntegrationTestRunner({
       const { headers, shop } = await adminShopHeaders(api, getContainer());
       admin = headers;
       salesChannelId = shop.sales_channel_id ?? "";
+      rootCategoryId = shop.root_category_id;
       await post("/admin/attributes", { name: "Материал" });
     });
 
@@ -254,7 +256,9 @@ medusaIntegrationTestRunner({
       const {
         result: [shoes],
       } = await createProductCategoriesWorkflow(getContainer()).run({
-        input: { product_categories: [{ name: "Обувь", handle: "obuv", is_active: true }] },
+        input: {
+          product_categories: [{ name: "Обувь", handle: "obuv", is_active: true, parent_category_id: rootCategoryId }],
+        },
       });
 
       const { data: groups } = await get(`/admin/suppliers/${supplierId}/exchange-groups`);

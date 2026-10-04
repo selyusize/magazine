@@ -6,14 +6,14 @@ import { AttributeValue } from "./attribute-value";
 /**
  * Характеристика товара («Материал», «Мощность, Вт»): источник фильтров каталога и `additionalProperty` в schema.org.
  * `handle` — код характеристики в адресах фильтров и в `filters` посадочных (`{ "material": ["hlopok"] }`).
- * Характеристика принадлежит магазину `shop_id`; код пока уникален на всю сеть (по магазинам — шаг 4 плана).
+ * Характеристика принадлежит магазину `shop_id`, код уникален внутри магазина.
  */
 export const Attribute = model
   .define("attribute", {
     id: model.id({ prefix: "attr" }).primaryKey(),
-    shop_id: model.text().index(),
+    shop_id: model.text(),
     name: model.text().searchable(),
-    handle: model.text().unique(),
+    handle: model.text(),
     type: model.enum(["string", "number", "boolean"]).default("string"),
     unit: model.text().nullable(),
     /** Показывать фильтром в каталоге. */
@@ -24,7 +24,9 @@ export const Attribute = model
     rank: model.number().default(0),
     values: model.hasMany(() => AttributeValue, { mappedBy: "attribute" }),
   })
-  .cascades({ delete: ["values"] });
+  .cascades({ delete: ["values"] })
+  // Индекс начинается с `shop_id` — он же для списков магазина
+  .indexes([{ on: ["shop_id", "handle"], unique: true }]);
 
 /** Строка таблицы — только внутри модуля, наружу отдаём DTO. */
 export type AttributeEntity = InferTypeOf<typeof Attribute>;

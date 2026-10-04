@@ -18,6 +18,7 @@ medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
     let store: Record<string, string>;
     let admin: Record<string, string>;
+    let salesChannelId: string;
 
     const resolve = async (path: string): Promise<Rule | null> =>
       (
@@ -40,7 +41,9 @@ medusaIntegrationTestRunner({
 
     beforeEach(async () => {
       store = await storeHeaders(getContainer());
-      admin = (await adminShopHeaders(api, getContainer())).headers;
+      const { headers, shop } = await adminShopHeaders(api, getContainer());
+      admin = headers;
+      salesChannelId = shop.sales_channel_id ?? "";
     });
 
     it("создаёт бренд со slug из названия и уникализирует его", async () => {
@@ -170,7 +173,14 @@ medusaIntegrationTestRunner({
         result: [product],
       } = await createProductsWorkflow(getContainer()).run({
         input: {
-          products: [{ title: "Кеды", status: "draft", options: [{ title: "Размер", values: ["M"] }] }],
+          products: [
+            {
+              title: "Кеды",
+              status: "draft",
+              sales_channels: [{ id: salesChannelId }],
+              options: [{ title: "Размер", values: ["M"] }],
+            },
+          ],
         },
       });
       await api.post(

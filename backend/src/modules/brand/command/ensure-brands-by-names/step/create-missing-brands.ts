@@ -11,9 +11,8 @@ import type { BrandByNameDTO } from "../dto";
 
 /**
  * Находит бренды магазина по ключу названия (`brandKey`) среди названий и синонимов, недостающие создаёт в этом
- * магазине со свободным slug. Бренды других магазинов не подходят, но их handle заняты: пока handle уникален на всю
- * сеть (по магазинам — шаг 4 плана). Откат удаляет созданные. Handle выбирается под той же блокировкой, что и
- * в CRUD брендов (`crud-handle:brand`).
+ * магазине со свободным в нём slug: бренды и handle других магазинов не мешают. Откат удаляет созданные. Handle
+ * выбирается под той же блокировкой, что и в CRUD брендов (`crud-handle:brand`).
  */
 export const createMissingBrandsStep = createStep(
   "create-missing-brands",
@@ -22,9 +21,12 @@ export const createMissingBrandsStep = createStep(
     const names = [...new Set(command.names.map((name) => name.trim()).filter(Boolean))];
     if (!names.length) return new StepResponse<BrandByNameDTO[], string[]>([], []);
 
-    const existing = await brands.listBrands({}, { select: ["id", "shop_id", "name", "synonyms", "handle"] });
+    const existing = await brands.listBrands(
+      { shop_id: command.shop_id },
+      { select: ["id", "name", "synonyms", "handle"] },
+    );
     const byKey = new Map<string, string>();
-    for (const brand of existing.filter((brand) => brand.shop_id === command.shop_id)) {
+    for (const brand of existing) {
       for (const synonym of texts(brand.synonyms)) byKey.set(brandKey(synonym), brand.id);
       byKey.set(brandKey(brand.name), brand.id);
     }

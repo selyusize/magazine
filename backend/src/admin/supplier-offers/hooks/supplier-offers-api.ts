@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { adminFetch } from "../../lib/admin-fetch";
+import { useProductShop } from "../../shops/hooks/use-product-shop";
 
 /** Предложение в карточке товара — `GET /admin/products/:id/supplier-offers`. */
 export type ProductSupplierOffer = {
@@ -41,60 +42,77 @@ type SupplierOption = { id: string; name: string; is_active: boolean };
 const offersKey = (productId: string) =>
   ["admin-product-supplier-offers", productId] as const;
 
+/** Предложения и поставщики — в магазине товара; пока он не известен, запросы ждут. */
+const useShopId = (productId: string): string | null =>
+  useProductShop(productId).data?.id ?? null;
+
 export function useProductSupplierOffers(productId: string) {
+  const shopId = useShopId(productId);
   return useQuery({
     queryKey: offersKey(productId),
     queryFn: () =>
       adminFetch<{ supplier_offers: ProductSupplierOffer[] }>(
         `/admin/products/${productId}/supplier-offers`,
+        {},
+        shopId,
       ),
     select: (data) => data.supplier_offers,
+    enabled: shopId !== null,
   });
 }
 
-/** Поставщики для выбора. Их единицы-десятки — первой сотни хватает. */
-export function useSupplierOptions(enabled: boolean) {
+/** Поставщики магазина товара. Их единицы-десятки — первой сотни хватает. */
+export function useSupplierOptions(productId: string, enabled: boolean) {
+  const shopId = useShopId(productId);
   return useQuery({
-    queryKey: ["admin-supplier-options"],
+    queryKey: ["admin-supplier-options", shopId],
     queryFn: () =>
-      adminFetch<{ suppliers: SupplierOption[] }>("/admin/suppliers", {
-        query: { limit: 100 },
-      }),
+      adminFetch<{ suppliers: SupplierOption[] }>(
+        "/admin/suppliers",
+        { query: { limit: 100 } },
+        shopId,
+      ),
     select: (data) => data.suppliers,
-    enabled,
+    enabled: enabled && shopId !== null,
   });
 }
 
 function useOffersMutation<TInput>(
   productId: string,
-  mutationFn: (input: TInput) => Promise<unknown>,
+  request: (input: TInput, shopId: string | null) => Promise<unknown>,
 ) {
   const queryClient = useQueryClient();
+  const shopId = useShopId(productId);
   return useMutation({
-    mutationFn,
+    mutationFn: (input: TInput) => request(input, shopId),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: offersKey(productId) }),
   });
 }
 
 export const useSaveSupplierOffer = (productId: string) =>
-  useOffersMutation(productId, (input: SupplierOfferInput) =>
+  useOffersMutation(productId, (input: SupplierOfferInput, shopId) =>
     input.id !== null
-      ? adminFetch(`/admin/supplier-offers/${input.id}`, {
-          method: "POST",
-          body: input.fields,
-        })
-      : adminFetch("/admin/supplier-offers", {
-          method: "POST",
-          body: {
-            supplier_id: input.supplier_id,
-            variant_id: input.variant_id,
-            ...input.fields,
+      ? adminFetch(
+          `/admin/supplier-offers/${input.id}`,
+          { method: "POST", body: input.fields },
+          shopId,
+        )
+      : adminFetch(
+          "/admin/supplier-offers",
+          {
+            method: "POST",
+            body: {
+              supplier_id: input.supplier_id,
+              variant_id: input.variant_id,
+              ...input.fields,
+            },
           },
-        }),
+          shopId,
+        ),
   );
 
 export const useDeleteSupplierOffer = (productId: string) =>
-  useOffersMutation(productId, (id: string) =>
-    adminFetch(`/admin/supplier-offers/${id}`, { method: "DELETE" }),
+  useOffersMutation(productId, (id: string, shopId) =>
+    adminFetch(`/admin/supplier-offers/${id}`, { method: "DELETE" }, shopId),
   );

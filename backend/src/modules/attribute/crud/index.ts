@@ -20,7 +20,7 @@ const toAttributeDTO = (row: CRUDRow): AttributeDTO => ({
 });
 
 /**
- * CRUD характеристик для админки — /admin/attributes. Handle — код из названия, уникален; своей страницы у
+ * CRUD характеристик для админки — /admin/attributes. Handle — код из названия, уникален в магазине; своей страницы у
  * характеристики нет, поэтому смена кода редиректов не ставит. Удаление уносит значения у товаров.
  */
 export const attributeCRUD = defineCRUD<AttributeDTO>({
@@ -44,7 +44,7 @@ export const attributeCRUD = defineCRUD<AttributeDTO>({
   ],
   search: ["name", "handle"],
   order: { rank: "ASC", name: "ASC" },
-  handle: { from: "name" },
+  handle: { from: "name", scope: ["shop_id"] },
   schemas: { create: CreateAttributeSchema, update: UpdateAttributeSchema },
   toDTO: toAttributeDTO,
 });

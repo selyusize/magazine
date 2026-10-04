@@ -207,24 +207,6 @@
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_attribute_shop_id",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_attribute_shop_id\" ON \"attribute\" (\"shop_id\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "IDX_attribute_handle_unique",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_attribute_handle_unique\" ON \"attribute\" (\"handle\") WHERE deleted_at IS NULL"
-        },
-        {
           "keyName": "IDX_attribute_deleted_at",
           "columnNames": [],
           "composite": false,
@@ -232,6 +214,15 @@
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_attribute_deleted_at\" ON \"attribute\" (\"deleted_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_attribute_shop_id_handle_unique",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_attribute_shop_id_handle_unique\" ON \"attribute\" (\"shop_id\", \"handle\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "attribute_pkey",

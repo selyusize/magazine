@@ -5,7 +5,7 @@
  *
  * Publishing goes the same way as for real products: drafts first, then a demo
  * supplier's offers (stock), a main category, and only then `published` — the
- * publish hook (src/workflows/hooks/product-publish-requirements.ts) rejects
+ * publish hook (src/workflows/hooks/product-guards.ts) rejects
  * anything less.
  *
  *   npx medusa exec ./src/scripts/seed-demo-products.ts
@@ -33,6 +33,7 @@ import type {
 } from "@medusajs/framework/types";
 
 import { Container } from "@container/index";
+import { toStoredHandle } from "@shared/shop/shop-slug";
 import { UpdateCatalogForProductHandler } from "@domain/catalog/command/update-catalog-for-product/handler";
 import { CreateSupplierOfferHandler } from "@domain/supplier/command/create-supplier-offer/handler";
 import { SyncInventoryForSupplierHandler } from "@domain/supplier/command/sync-inventory-for-supplier/handler";
@@ -146,7 +147,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   // Товары — в канал первого магазина (olisa): ключ его витрины видит только свой канал
   const { data: shops } = await query.graph({
     entity: "shop",
-    fields: ["id", "sales_channel.id", "sales_channel.name"],
+    fields: ["id", "root_category_id", "sales_channel.id", "sales_channel.name"],
     filters: { slug: initialShopConfig.slug },
   });
   const salesChannels = shops.flatMap((shop) =>
@@ -156,19 +157,34 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     entity: "shipping_profile",
     fields: ["id"],
   });
-  let { data: categories } = await query.graph({
-    entity: "product_category",
-    fields: ["id", "name"],
-  });
+  // Категории — только из дерева магазина (корень не в счёт): чужие хук товара отклонит
+  const shopCategories = async () =>
+    (
+      await query.graph({
+        entity: "product_category",
+        fields: ["id", "name", "shop.id"],
+      })
+    ).data.filter(
+      (category) =>
+        category.shop?.id === shops[0]?.id &&
+        category.id !== shops[0]?.root_category_id,
+    );
+  let categories = await shopCategories();
   // Publishing needs a main category, so the store needs at least one
-  if (!categories.length) {
+  if (!categories.length && shops[0]) {
     await createProductCategoriesWorkflow(container).run({
-      input: { product_categories: [{ ...DEMO_CATEGORY, is_active: true }] },
+      input: {
+        product_categories: [
+          {
+            ...DEMO_CATEGORY,
+            handle: toStoredHandle({ shop: initialShopConfig.slug, handle: DEMO_CATEGORY.handle }),
+            parent_category_id: shops[0].root_category_id,
+            is_active: true,
+          },
+        ],
+      },
     });
-    ({ data: categories } = await query.graph({
-      entity: "product_category",
-      fields: ["id", "name"],
-    }));
+    categories = await shopCategories();
   }
   const { data: stores } = await query.graph({
     entity: "store",

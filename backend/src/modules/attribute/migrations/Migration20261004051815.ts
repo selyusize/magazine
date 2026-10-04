@@ -1,13 +1,12 @@
 import { Migration } from "@medusajs/framework/mikro-orm/migrations";
 
-export class Migration20261004044556 extends Migration {
+export class Migration20261004051815 extends Migration {
 
   override async up(): Promise<void> {
-    this.addSql(`alter table if exists "attribute" drop constraint if exists "attribute_handle_unique";`);
+    this.addSql(`alter table if exists "attribute" drop constraint if exists "attribute_shop_id_handle_unique";`);
     this.addSql(`create table if not exists "attribute" ("id" text not null, "shop_id" text not null, "name" text not null, "handle" text not null, "type" text check ("type" in ('string', 'number', 'boolean')) not null default 'string', "unit" text null, "is_filterable" boolean not null default false, "is_visible" boolean not null default true, "rank" integer not null default 0, "created_at" timestamptz not null default now(), "updated_at" timestamptz not null default now(), "deleted_at" timestamptz null, constraint "attribute_pkey" primary key ("id"));`);
-    this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_attribute_shop_id" ON "attribute" ("shop_id") WHERE deleted_at IS NULL;`);
-    this.addSql(`CREATE UNIQUE INDEX IF NOT EXISTS "IDX_attribute_handle_unique" ON "attribute" ("handle") WHERE deleted_at IS NULL;`);
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_attribute_deleted_at" ON "attribute" ("deleted_at") WHERE deleted_at IS NULL;`);
+    this.addSql(`CREATE UNIQUE INDEX IF NOT EXISTS "IDX_attribute_shop_id_handle_unique" ON "attribute" ("shop_id", "handle") WHERE deleted_at IS NULL;`);
 
     this.addSql(`create table if not exists "attribute_value" ("id" text not null, "attribute_id" text not null, "product_id" text not null, "variant_id" text null, "value" text not null, "handle" text not null, "number" real null, "created_at" timestamptz not null default now(), "updated_at" timestamptz not null default now(), "deleted_at" timestamptz null, constraint "attribute_value_pkey" primary key ("id"));`);
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_attribute_value_attribute_id" ON "attribute_value" ("attribute_id") WHERE deleted_at IS NULL;`);

@@ -5,7 +5,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils";
 import { initialShopConfig } from "../../src/container/common/shop";
 import initialDataSeed from "../../src/migration-scripts/initial-data-seed";
 
-import { adminHeaders } from "./helpers/auth";
+import { adminHeaders, testCategoryRoot } from "./helpers/auth";
 
 jest.setTimeout(120 * 1000);
 
@@ -216,7 +216,13 @@ medusaIntegrationTestRunner({
       // Handle корня уже занят — workflow падает после создания канала и ключа
       await createProductCategoriesWorkflow(getContainer()).run({
         input: {
-          product_categories: [{ name: "Чужая", handle: "snow--catalog" }],
+          product_categories: [
+            {
+              name: "Чужая",
+              handle: "snow--catalog",
+              parent_category_id: await testCategoryRoot(getContainer()),
+            },
+          ],
         },
       });
       const channelsBefore = await graph("sales_channel", ["id"]);

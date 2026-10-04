@@ -4,6 +4,8 @@ import {
 } from "@medusajs/framework/utils";
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
 
+import { foreignShopError, PRODUCT_SHOP_FIELDS, toProductShop } from "@shared/shop/catalog-shop";
+
 import { normalizeAttributeValue, toAttributeRef } from "../../../service/attribute-value";
 import type { SetAttributeValuesForProductCommand } from "../command";
 
@@ -17,8 +19,8 @@ export type AttributeValueRow = {
 };
 
 /**
- * Только чтение: товар и вариант существуют (вариант — этого товара), характеристики существуют; значения
- * приведены к типу характеристики, пустые и повторы отброшены.
+ * Только чтение: товар и вариант существуют (вариант — этого товара), характеристики существуют и они из магазина
+ * товара (чужая — 400); значения приведены к типу характеристики, пустые и повторы отброшены.
  */
 export const buildAttributeValuesStep = createStep(
   "build-attribute-values",
@@ -26,7 +28,7 @@ export const buildAttributeValuesStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const { data: products } = await query.graph({
       entity: "product",
-      fields: ["id", "variants.id"],
+      fields: ["id", "variants.id", ...PRODUCT_SHOP_FIELDS],
       filters: { id: command.product_id },
     });
     const product = products[0];
@@ -50,10 +52,13 @@ export const buildAttributeValuesStep = createStep(
     const { data: attributes } = attributeIds.length
       ? await query.graph({
           entity: "attribute",
-          fields: ["id", "name", "type"],
+          fields: ["id", "name", "type", "shop_id"],
           filters: { id: attributeIds },
         })
       : { data: [] };
+    const shopId = toProductShop(product).shop_id;
+    const foreign = attributes.find((attribute) => attribute.shop_id !== shopId);
+    if (foreign) throw foreignShopError(`Характеристика «${foreign.name}»`);
     const byId = new Map(attributes.map(toAttributeRef).map((attribute) => [attribute.id, attribute]));
     const missing = attributeIds.find((id) => !byId.has(id));
     if (missing)
